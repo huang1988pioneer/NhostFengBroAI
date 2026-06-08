@@ -784,6 +784,21 @@ td small {
   pointer-events: none;
 }
 
+label.csv-btn {
+  cursor: pointer;
+}
+
+.csv-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+  animation: csv-pulse 1s ease-in-out infinite;
+}
+
+@keyframes csv-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 .csv-toast {
   position: fixed;
   bottom: 28px;
