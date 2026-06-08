@@ -38,22 +38,28 @@ NUXT_NHOST_ADMIN_SECRET=your-hasura-admin-secret
 
 ## 支援的資料表
 
-系統會先 introspect Nhost GraphQL schema，再自動尋找常見 table 名稱：
+系統會先 introspect Nhost GraphQL schema，再自動尋找 table。生成 Table 會優先使用舊 Appwrite 命名：
 
-- 訂閱：`subscriptions`, `subscription`, `fengbro_subscriptions`, `subscription_items`
-- 食品：`foods`, `food`, `food_items`, `fengbro_foods`
-- 筆記：`articles`, `article`, `notes`, `note`, `fengbro_articles`
-- 銀行：`banks`, `bank`, `bank_accounts`, `fengbro_banks`
-- 例行：`routines`, `routine`, `routine_items`, `fengbro_routines`
-- 常用帳號：`common_accounts`, `accounts`, `commonAccounts`, `fengbro_accounts`
-- 媒體：`media_items`, `media`, `fengbro_media`
-- 金融追蹤：`finance_watch`, `finance`, `watchlist`, `fengbro_finance_watch`
+- `article`
+- `bank`
+- `commonaccount`
+- `commondocument`
+- `food`
+- `image`
+- `landtophistory`
+- `music`
+- `podcast`
+- `routine`
+- `subscription`
+- `video`
+
+讀取資料時也相容複數或新版命名，例如 `subscriptions`, `foods`, `articles`, `banks`, `routines`, `common_accounts`, `media_items`。
 
 欄位也支援常見別名，例如 `nextdate` / `next_date` / `due_date`、`newDate` / `new_date` / `created_at`。
 
 ## 生成 Table
 
-進入「鋒兄設定」後可以使用「生成 Nhost Table」區塊：
+進入「鋒兄設定」後可以使用「生成 Nhost Table」區塊，會依照 Appwrite 截圖參考建立 12 張 public schema 資料表：
 
 - `複製 SQL`：複製所有 `CREATE TABLE IF NOT EXISTS` SQL，可貼到 Nhost SQL Editor。
 - `下載 SQL`：下載 `fengbro-nhost-tables.sql`。

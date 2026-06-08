@@ -92,7 +92,7 @@ const schemaQuery = `query FengbroSchema {
 const tablePlans = [
   {
     key: "subscriptions",
-    candidates: ["subscriptions", "subscription", "fengbro_subscriptions", "subscription_items"],
+    candidates: ["subscription", "subscriptions", "fengbro_subscriptions", "subscription_items"],
     columns: {
       name: ["name", "title", "subscription_name"],
       site: ["site", "url", "link"],
@@ -119,7 +119,7 @@ const tablePlans = [
   },
   {
     key: "foods",
-    candidates: ["foods", "food", "food_items", "fengbro_foods"],
+    candidates: ["food", "foods", "food_items", "fengbro_foods"],
     columns: {
       name: ["name", "title", "food_name"],
       amount: ["amount", "quantity", "qty"],
@@ -142,7 +142,7 @@ const tablePlans = [
   },
   {
     key: "articles",
-    candidates: ["articles", "article", "notes", "note", "fengbro_articles"],
+    candidates: ["article", "landtophistory", "articles", "notes", "note", "fengbro_articles"],
     columns: {
       title: ["title", "name"],
       content: ["content", "body", "note", "description"],
@@ -161,7 +161,7 @@ const tablePlans = [
   },
   {
     key: "banks",
-    candidates: ["banks", "bank", "bank_accounts", "fengbro_banks"],
+    candidates: ["bank", "banks", "bank_accounts", "fengbro_banks"],
     columns: {
       name: ["name", "bank_name", "title"],
       deposit: ["deposit", "balance", "amount"],
@@ -188,7 +188,7 @@ const tablePlans = [
   },
   {
     key: "routines",
-    candidates: ["routines", "routine", "routine_items", "fengbro_routines"],
+    candidates: ["routine", "routines", "routine_items", "fengbro_routines"],
     columns: {
       name: ["name", "title"],
       note: ["note", "notes", "description"],
@@ -213,7 +213,7 @@ const tablePlans = [
   },
   {
     key: "commonAccounts",
-    candidates: ["common_accounts", "accounts", "commonAccounts", "fengbro_accounts"],
+    candidates: ["commonaccount", "common_accounts", "accounts", "commonAccounts", "fengbro_accounts"],
     columns: {
       name: ["name", "email", "account"],
       sites: ["sites", "site", "services"]
@@ -256,6 +256,14 @@ const tablePlans = [
   }
 ] satisfies TablePlan<string>[];
 
+const appwriteMediaTables = [
+  { table: "image", key: "images" },
+  { table: "video", key: "videos" },
+  { table: "music", key: "music" },
+  { table: "podcast", key: "podcasts" },
+  { table: "commondocument", key: "documents" }
+] as const;
+
 export async function fetchNhostDataset(base: FengbroDataset): Promise<{
   dataset: FengbroDataset;
   loadedKeys: Array<keyof FengbroDataset>;
@@ -276,6 +284,7 @@ export async function fetchNhostDataset(
   const { rootFields, typeFields } = indexSchema(schema);
   const selections: string[] = [];
   const activePlans: Array<TablePlan<string> & { table: string; selectedColumns: Record<string, string> }> = [];
+  const activeMediaPlans: Array<{ alias: string; key: keyof MediaLibrary }> = [];
 
   for (const plan of tablePlans) {
     const table = plan.candidates.find((candidate) => rootFields.has(candidate));
@@ -299,6 +308,19 @@ export async function fetchNhostDataset(
     selections.push(`${plan.key}: ${table} { ${fieldSelections.join(" ")} }`);
   }
 
+  for (const mediaPlan of appwriteMediaTables) {
+    const typeName = rootFields.get(mediaPlan.table);
+    const fields = typeName ? typeFields.get(typeName) : undefined;
+    if (!fields) continue;
+
+    const nameField = ["name", "title", "filename"].find((candidate) => fields.has(candidate));
+    if (!nameField) continue;
+
+    const alias = `media_${mediaPlan.key}`;
+    activeMediaPlans.push({ alias, key: mediaPlan.key });
+    selections.push(`${alias}: ${mediaPlan.table} { name: ${nameField} }`);
+  }
+
   if (!selections.length) {
     return { dataset: base, loadedKeys: [] };
   }
@@ -318,6 +340,16 @@ export async function fetchNhostDataset(
     }
 
     loadedKeys.push(plan.key);
+  }
+
+  for (const mediaPlan of activeMediaPlans) {
+    const rows = Array.isArray(data[mediaPlan.alias]) ? (data[mediaPlan.alias] as Array<Record<string, unknown>>) : [];
+    if (!rows.length) continue;
+
+    dataset.mediaSeed[mediaPlan.key] = rows.map((row) => text(row.name)).filter(Boolean);
+    if (!loadedKeys.includes("mediaSeed")) {
+      loadedKeys.push("mediaSeed");
+    }
   }
 
   return { dataset, loadedKeys };

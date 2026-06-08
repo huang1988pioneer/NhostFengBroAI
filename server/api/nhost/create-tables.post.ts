@@ -1,4 +1,4 @@
-import { createNhostTablesSql } from "~/utils/nhostSchema";
+import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
 
 type HasuraRunSqlResponse = {
   result_type?: string;
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
   return {
     ok: true,
     endpoint: sqlEndpoint,
-    tables: 8,
+    tables: nhostTableSchemas.length,
     resultType: response.result_type || "CommandOk"
   };
 });
