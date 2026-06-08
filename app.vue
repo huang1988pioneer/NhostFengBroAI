@@ -31,7 +31,7 @@ import {
   X
 } from "@lucide/vue";
 import type { Component } from "vue";
-import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription } from "~/data/fengbro";
+import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription, type MediaLibrary, type FinanceWatch } from "~/data/fengbro";
 import { fetchNhostDataset, type NhostConnection } from "~/utils/nhostData";
 import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
 import {
@@ -53,7 +53,6 @@ import {
   upsertRoutines
 } from "~/utils/nhostMutations";
 import { createTablesDirect, deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
-import type { MediaLibrary } from "~/data/fengbro";
 
 type MenuItem = {
   id: string;
@@ -1348,6 +1347,20 @@ function csvCell(value: unknown) {
         </label>
       </header>
 
+      <!-- ── Global data state banner ────────────────────────────────── -->
+      <div v-if="dataSource === 'loading'" class="data-state-banner loading">
+        <span class="spinner-dot" /><span class="spinner-dot" /><span class="spinner-dot" />
+        <span>正在連線 Nhost GraphQL...</span>
+      </div>
+      <div v-else-if="dataSource === 'error'" class="data-state-banner error">
+        <span>⚠️ 資料庫無法連線：{{ nhostError }}</span>
+        <button type="button" @click="loadNhostData">重試</button>
+      </div>
+      <div v-else-if="dataSource === 'empty'" class="data-state-banner empty">
+        <span>📭 資料庫尚無資料。請新增資料或匯入 CSV。</span>
+        <button type="button" @click="navigate('settings')">前往設定</button>
+      </div>
+
       <section v-if="currentModule === 'home' || currentModule === 'dashboard'" class="module-grid">
         <div class="hero-panel">
           <div>
@@ -1420,16 +1433,17 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addSubscription">
-            <input v-model="quickForm.subscriptionName" placeholder="名稱" />
+            <input v-model="quickForm.subscriptionName" placeholder="名稱" :class="{ editing: editingSubId }" />
             <input v-model="quickForm.subscriptionDate" type="date" />
             <input v-model.number="quickForm.subscriptionPrice" min="0" type="number" placeholder="價格" />
-            <button type="submit">新增</button>
+            <button type="submit">{{ editingSubId ? '更新訂閱' : '新增' }}</button>
+            <button v-if="editingSubId" type="button" class="cancel-btn" @click="cancelEditSub">取消</button>
           </form>
         </section>
         <section class="panel wide">
           <DataTable :rows="filteredSubscriptions" :columns="['名稱', '價格', '幣別', '下次日期', '帳號', '狀態']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><button class="text-action danger" type="button" @click="deleteFromNhostByName('subscription', row.name, () => removeSubscription(row.name))">刪除</button></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('subscription', row.name, () => removeSubscription(row.name))">刪除</button></div></td>
               <td>{{ money(row.price, row.currency) }}</td>
               <td>{{ row.currency }}</td>
               <td>{{ row.nextdate }}<small>{{ daysUntil(row.nextdate) }}</small></td>
@@ -1453,10 +1467,11 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addFood">
-            <input v-model="quickForm.foodName" placeholder="品名" />
+            <input v-model="quickForm.foodName" placeholder="品名" :class="{ editing: editingFoodId }" />
             <input v-model.number="quickForm.foodAmount" min="1" type="number" placeholder="數量" />
             <input v-model="quickForm.foodDate" type="date" />
-            <button type="submit">新增</button>
+            <button type="submit">{{ editingFoodId ? '更新食品' : '新增' }}</button>
+            <button v-if="editingFoodId" type="button" class="cancel-btn" @click="cancelEditFood">取消</button>
           </form>
         </section>
         <article v-for="item in filteredFoods" :key="`${item.name}-${item.todate}`" class="media-card">
@@ -1465,7 +1480,7 @@ function csvCell(value: unknown) {
           <div>
             <strong>{{ item.name }}</strong>
             <span>數量 {{ item.amount }} / 到期 {{ item.todate }} / {{ daysUntil(item.todate) }}</span>
-            <button class="text-action danger" type="button" @click="deleteFromNhostByName('food', item.name, () => removeFood(item.name))">刪除</button>
+            <div class="row-btn-group"><button class="text-action" type="button" @click="startEditFood(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('food', item.name, () => removeFood(item.name))">刪除</button></div>
           </div>
         </article>
       </section>
@@ -1483,16 +1498,17 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form note-form" @submit.prevent="addNote">
-            <input v-model="quickForm.noteTitle" placeholder="標題" />
+            <input v-model="quickForm.noteTitle" placeholder="標題" :class="{ editing: editingNoteId }" />
             <textarea v-model="quickForm.noteContent" placeholder="內容" />
-            <button type="submit">新增</button>
+            <button type="submit">{{ editingNoteId ? '更新筆記' : '新增' }}</button>
+            <button v-if="editingNoteId" type="button" class="cancel-btn" @click="cancelEditNote">取消</button>
           </form>
         </section>
         <article v-for="item in filteredArticles" :key="`${item.title}-${item.newDate}`" class="note-card">
           <small>{{ item.category || "未分類" }} / {{ item.newDate }}</small>
           <h3>{{ item.title }}</h3>
           <p>{{ item.content }}</p>
-          <button class="text-action danger" type="button" @click="deleteFromNhostByName('article', item.title, () => removeArticle(item.title), 'title')">刪除</button>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditNote(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('article', item.title, () => removeArticle(item.title), 'title')">刪除</button></div>
         </article>
       </section>
 
@@ -1549,15 +1565,16 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addBank">
-            <input v-model="quickForm.bankName" placeholder="銀行 / 電子票證名稱" />
+            <input v-model="quickForm.bankName" placeholder="銀行 / 電子票證名稱" :class="{ editing: editingBankId }" />
             <input v-model.number="quickForm.bankDeposit" min="0" type="number" placeholder="餘額" />
             <input v-model="quickForm.bankAccount" placeholder="帳號" />
             <input v-model="quickForm.bankCard" placeholder="卡片 / 電子票證" />
-            <button type="submit">新增銀行</button>
+            <button type="submit">{{ editingBankId ? '更新銀行' : '新增銀行' }}</button>
+            <button v-if="editingBankId" type="button" class="cancel-btn" @click="cancelEditBank">取消</button>
           </form>
           <DataTable :rows="filteredBanks" :columns="['名稱', '餘額', '提款', '轉帳', '卡片', '帳號']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><button class="text-action danger" type="button" @click="deleteFromNhostByName('bank', row.name, () => removeBank(row.name))">刪除</button></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><div class="row-btn-group"><button class="text-action" type="button" @click="startEditBank(row)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('bank', row.name, () => removeBank(row.name))">刪除</button></div></td>
               <td>{{ money(row.deposit) }}</td>
               <td>{{ row.withdrawals }}</td>
               <td>{{ row.transfer }}</td>
@@ -1581,10 +1598,11 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addRoutine">
-            <input v-model="quickForm.routineName" placeholder="名稱" />
+            <input v-model="quickForm.routineName" placeholder="名稱" :class="{ editing: editingRoutineId }" />
             <input v-model="quickForm.routineDate" type="date" />
             <input v-model="quickForm.routineNote" placeholder="備註" />
-            <button type="submit">新增</button>
+            <button type="submit">{{ editingRoutineId ? '更新例行' : '新增' }}</button>
+            <button v-if="editingRoutineId" type="button" class="cancel-btn" @click="cancelEditRoutine">取消</button>
           </form>
         </section>
         <article v-for="item in filteredRoutines" :key="`${item.name}-${item.lastdate1}`" class="routine-card">
@@ -1594,7 +1612,7 @@ function csvCell(value: unknown) {
           </div>
           <p>{{ item.note || "沒有備註" }}</p>
           <a v-if="item.link" :href="item.link" target="_blank">開啟連結</a>
-          <button class="text-action danger" type="button" @click="deleteFromNhostByName('routine', item.name, () => removeRoutine(item.name))">刪除</button>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditRoutine(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('routine', item.name, () => removeRoutine(item.name))">刪除</button></div>
         </article>
       </section>
 
