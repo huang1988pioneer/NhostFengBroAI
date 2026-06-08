@@ -43,6 +43,16 @@ NUXT_NHOST_ADMIN_SECRET=your-hasura-admin-secret
 
 欄位也支援常見別名，例如 `nextdate` / `next_date` / `due_date`、`newDate` / `new_date` / `created_at`。
 
+## 生成 Table
+
+進入「鋒兄設定」後可以使用「生成 Nhost Table」區塊：
+
+- `複製 SQL`：複製所有 `CREATE TABLE IF NOT EXISTS` SQL，可貼到 Nhost SQL Editor。
+- `下載 SQL`：下載 `fengbro-nhost-tables.sql`。
+- `生成 Table`：呼叫 `/api/nhost/create-tables`，使用 `NUXT_NHOST_ADMIN_SECRET` 透過 Hasura `run_sql` 建立資料表。
+
+若未設定 `NUXT_NHOST_ADMIN_SECRET`，一鍵生成會失敗，但仍可複製 SQL 到 Nhost SQL Editor 手動執行。
+
 ## Development
 
 ```bash
@@ -55,4 +65,3 @@ npm run dev
 ```bash
 npm run build
 ```
-

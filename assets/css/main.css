@@ -393,6 +393,26 @@ a {
   cursor: pointer;
 }
 
+.section-heading button:disabled,
+.quick-form button:disabled,
+.tabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.section-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .timeline,
 .note-list {
   display: grid;
@@ -602,6 +622,54 @@ td small {
   font-weight: 750;
 }
 
+.schema-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.schema-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 13px;
+}
+
+.schema-card strong {
+  font-size: 14px;
+}
+
+.schema-card span,
+.status-message {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-message {
+  border-radius: 14px;
+  background: rgba(81, 116, 91, 0.12);
+  color: var(--green);
+  padding: 12px 14px;
+}
+
+.sql-preview {
+  width: 100%;
+  min-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(31, 42, 35, 0.94);
+  color: #f7f3ea;
+  padding: 16px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  resize: vertical;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 88px minmax(0, 1fr);
@@ -630,6 +698,10 @@ td small {
   }
 
   .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schema-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -711,6 +783,14 @@ td small {
   .timeline article,
   .quick-form,
   .quick-form.note-form {
+    grid-template-columns: 1fr;
+  }
+
+  .button-row {
+    justify-content: flex-start;
+  }
+
+  .schema-grid {
     grid-template-columns: 1fr;
   }
 }

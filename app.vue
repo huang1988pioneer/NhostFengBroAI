@@ -31,6 +31,7 @@ import {
 import type { Component } from "vue";
 import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription } from "~/data/fengbro";
 import { fetchNhostDataset } from "~/utils/nhostData";
+import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
 
 type MenuItem = {
   id: string;
@@ -90,6 +91,9 @@ const activeTool = ref("price-compare");
 const dataSource = ref<"loading" | "nhost" | "fallback">("loading");
 const sourceMessage = ref("正在連線 Nhost GraphQL...");
 const loadedTables = ref<string[]>([]);
+const tableSql = createNhostTablesSql;
+const tableGenerationStatus = ref("");
+const isGeneratingTables = ref(false);
 
 const subscriptions = ref<Subscription[]>(structuredClone(fallbackDataset.subscriptions));
 const foods = ref<Food[]>(structuredClone(fallbackDataset.foods));
@@ -286,6 +290,50 @@ function addRoutine() {
   });
   quickForm.routineName = "";
   quickForm.routineDate = "";
+}
+
+async function copyTableSql() {
+  tableGenerationStatus.value = "";
+
+  try {
+    await navigator.clipboard.writeText(tableSql);
+    tableGenerationStatus.value = "已複製建表 SQL，可以貼到 Nhost SQL Editor。";
+  } catch {
+    tableGenerationStatus.value = "瀏覽器不允許自動複製，請手動選取 SQL。";
+  }
+}
+
+function downloadTableSql() {
+  const blob = new Blob([tableSql], { type: "text/sql;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "fengbro-nhost-tables.sql";
+  link.click();
+  URL.revokeObjectURL(url);
+  tableGenerationStatus.value = "已下載 fengbro-nhost-tables.sql。";
+}
+
+async function generateTables() {
+  isGeneratingTables.value = true;
+  tableGenerationStatus.value = "正在請 Nhost 建立資料表...";
+
+  try {
+    const result = await $fetch<{ ok: boolean; tables: number }>("/api/nhost/create-tables", {
+      method: "POST"
+    });
+    tableGenerationStatus.value = result.ok
+      ? `已送出建表 SQL，預期建立 ${result.tables} 張資料表。`
+      : "建表 API 已回應，但沒有確認成功。";
+    await loadNhostData();
+  } catch (error) {
+    tableGenerationStatus.value =
+      error instanceof Error
+        ? `無法一鍵建表：${error.message}。可先複製 SQL 到 Nhost SQL Editor 執行。`
+        : "無法一鍵建表，可先複製 SQL 到 Nhost SQL Editor 執行。";
+  } finally {
+    isGeneratingTables.value = false;
+  }
 }
 </script>
 
@@ -557,6 +605,29 @@ function addRoutine() {
             <label><input type="checkbox" disabled /> 新增表單目前只做前端暫存，尚未寫回 Nhost mutation</label>
           </div>
         </article>
+        <article class="panel wide">
+          <div class="section-heading">
+            <div>
+              <h3>生成 Nhost Table</h3>
+              <p class="section-note">產生鋒兄工作台需要的 public schema 資料表。</p>
+            </div>
+            <div class="button-row">
+              <button type="button" @click="copyTableSql">複製 SQL</button>
+              <button type="button" @click="downloadTableSql">下載 SQL</button>
+              <button type="button" :disabled="isGeneratingTables" @click="generateTables">
+                {{ isGeneratingTables ? "生成中..." : "生成 Table" }}
+              </button>
+            </div>
+          </div>
+          <div class="schema-grid">
+            <article v-for="schema in nhostTableSchemas" :key="schema.name" class="schema-card">
+              <strong>{{ schema.label }}</strong>
+              <span>public.{{ schema.name }}</span>
+            </article>
+          </div>
+          <p v-if="tableGenerationStatus" class="status-message">{{ tableGenerationStatus }}</p>
+          <textarea class="sql-preview" :value="tableSql" readonly spellcheck="false" />
+        </article>
       </section>
 
       <section v-else-if="currentModule === 'about'" class="module-grid">
@@ -574,4 +645,3 @@ function addRoutine() {
     </main>
   </div>
 </template>
-
