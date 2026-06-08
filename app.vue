@@ -880,8 +880,8 @@ function cancelEditSub() {
   quickForm.subscriptionPrice = 0;
 }
 async function addSubscription() {
-  if (!quickForm.subscriptionName || !quickForm.subscriptionDate) {
-    showCsvToast("請填寫名稱和日期", true);
+  if (!quickForm.subscriptionName) {
+    showCsvToast("請填寫名稱", true);
     return;
   }
   if (submitting.value) return;
@@ -891,7 +891,7 @@ async function addSubscription() {
       name: quickForm.subscriptionName,
       site: "",
       price: Number(quickForm.subscriptionPrice || 0),
-      nextdate: quickForm.subscriptionDate.replace(/\//g, "-"),
+      nextdate: quickForm.subscriptionDate ? quickForm.subscriptionDate.replace(/\//g, "-") : null,
       note: "使用者新增",
       account: "",
       currency: "TWD",
@@ -941,14 +941,14 @@ function cancelEditFood() {
   quickForm.foodAmount = 1;
 }
 async function addFood() {
-  if (!quickForm.foodName || !quickForm.foodDate) {
-    showCsvToast("請填寫品名和到期日期", true);
+  if (!quickForm.foodName) {
+    showCsvToast("請填寫品名", true);
     return;
   }
   const record = {
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
-    todate: quickForm.foodDate.replace(/\//g, "-"),
+    todate: quickForm.foodDate ? quickForm.foodDate.replace(/\//g, "-") : null,
     photo: "",
     price: 0,
     shop: "使用者新增"
@@ -1040,14 +1040,14 @@ function cancelEditRoutine() {
   quickForm.routineNote = "";
 }
 async function addRoutine() {
-  if (!quickForm.routineName || !quickForm.routineDate) {
-    showCsvToast("請填寫名稱和日期", true);
+  if (!quickForm.routineName) {
+    showCsvToast("請填寫名稱", true);
     return;
   }
   const record = {
     name: quickForm.routineName,
     note: quickForm.routineNote,
-    lastdate1: quickForm.routineDate.replace(/\//g, "-"),
+    lastdate1: quickForm.routineDate ? quickForm.routineDate.replace(/\//g, "-") : null,
     lastdate2: "",
     lastdate3: "",
     link: "",
