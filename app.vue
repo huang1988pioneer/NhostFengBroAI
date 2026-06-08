@@ -7,6 +7,7 @@ import {
   Camera,
   CircleDollarSign,
   CreditCard,
+  Download,
   FileAudio,
   FileText,
   FolderOpen,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   Star,
   TrendingUp,
+  Upload,
   Utensils,
   WalletCards,
   Wrench,
@@ -32,6 +34,15 @@ import type { Component } from "vue";
 import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription } from "~/data/fengbro";
 import { fetchNhostDataset, type NhostConnection } from "~/utils/nhostData";
 import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
+import {
+  exportSubscriptions, importSubscriptions,
+  exportFoods, importFoods,
+  exportArticles, importArticles,
+  exportCommonAccounts, importCommonAccounts,
+  exportBanks, importBanks,
+  exportRoutines, importRoutines,
+  readFileAsText
+} from "~/utils/csvUtils";
 
 type MenuItem = {
   id: string;
@@ -114,6 +125,16 @@ const routines = ref<Routine[]>(structuredClone(fallbackDataset.routines));
 const commonAccounts = ref(structuredClone(fallbackDataset.commonAccounts));
 const mediaSeed = ref(structuredClone(fallbackDataset.mediaSeed));
 const financeWatch = ref(structuredClone(fallbackDataset.financeWatch));
+
+const csvToast = ref<{ message: string; isError: boolean } | null>(null);
+let csvToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const csvFileInputSub = ref<HTMLInputElement | null>(null);
+const csvFileInputFood = ref<HTMLInputElement | null>(null);
+const csvFileInputArticle = ref<HTMLInputElement | null>(null);
+const csvFileInputCommon = ref<HTMLInputElement | null>(null);
+const csvFileInputBank = ref<HTMLInputElement | null>(null);
+const csvFileInputRoutine = ref<HTMLInputElement | null>(null);
 
 const quickForm = reactive<QuickForm>({
   subscriptionName: "",
@@ -394,6 +415,36 @@ function addRoutine() {
   quickForm.routineDate = "";
 }
 
+function showCsvToast(message: string, isError = false) {
+  csvToast.value = { message, isError };
+  if (csvToastTimer) clearTimeout(csvToastTimer);
+  csvToastTimer = setTimeout(() => { csvToast.value = null; }, 3200);
+}
+
+async function handleCsvImport(
+  inputRef: Ref<HTMLInputElement | null>,
+  importFn: (text: string) => unknown[],
+  targetRef: Ref<unknown[]>,
+  label: string
+) {
+  const input = inputRef.value;
+  if (!input?.files?.length) return;
+  try {
+    const text = await readFileAsText(input.files[0]);
+    const items = importFn(text);
+    if (!items.length) {
+      showCsvToast(`CSV 中無有效資料列`, true);
+      return;
+    }
+    targetRef.value = items as never[];
+    showCsvToast(`已匯入 ${items.length} 筆${label}資料`);
+  } catch (err) {
+    showCsvToast(`匯入失敗：${err instanceof Error ? err.message : "未知錯誤"}`, true);
+  } finally {
+    input.value = ""; // reset for re-import
+  }
+}
+
 async function copyTableSql() {
   tableGenerationStatus.value = "";
 
@@ -561,7 +612,14 @@ async function generateTables() {
 
       <section v-else-if="currentModule === 'subscription'" class="module-grid">
         <section class="panel wide">
-          <div class="section-heading"><h3>新增訂閱</h3></div>
+          <div class="section-heading">
+            <h3>新增訂閱</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportSubscriptions(subscriptions)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputSub?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputSub" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputSub, importSubscriptions, subscriptions as any, '訂閱')" />
+            </div>
+          </div>
           <form class="quick-form" @submit.prevent="addSubscription">
             <input v-model="quickForm.subscriptionName" placeholder="名稱" />
             <input v-model="quickForm.subscriptionDate" type="date" />
@@ -585,7 +643,14 @@ async function generateTables() {
 
       <section v-else-if="currentModule === 'food'" class="module-grid">
         <section class="panel wide">
-          <div class="section-heading"><h3>新增食品庫存</h3></div>
+          <div class="section-heading">
+            <h3>新增食品庫存</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportFoods(foods)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputFood?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputFood" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputFood, importFoods, foods as any, '食品')" />
+            </div>
+          </div>
           <form class="quick-form" @submit.prevent="addFood">
             <input v-model="quickForm.foodName" placeholder="品名" />
             <input v-model.number="quickForm.foodAmount" min="1" type="number" placeholder="數量" />
@@ -605,7 +670,14 @@ async function generateTables() {
 
       <section v-else-if="currentModule === 'notes'" class="module-grid">
         <section class="panel wide">
-          <div class="section-heading"><h3>新增筆記</h3></div>
+          <div class="section-heading">
+            <h3>新增筆記</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportArticles(articles)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputArticle?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputArticle" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputArticle, importArticles, articles as any, '筆記')" />
+            </div>
+          </div>
           <form class="quick-form note-form" @submit.prevent="addNote">
             <input v-model="quickForm.noteTitle" placeholder="標題" />
             <textarea v-model="quickForm.noteContent" placeholder="內容" />
@@ -620,6 +692,16 @@ async function generateTables() {
       </section>
 
       <section v-else-if="currentModule === 'common'" class="module-grid">
+        <section class="panel wide">
+          <div class="section-heading">
+            <h3>常用帳號</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportCommonAccounts(commonAccounts)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputCommon?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputCommon" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputCommon, importCommonAccounts, commonAccounts as any, '常用帳號')" />
+            </div>
+          </div>
+        </section>
         <article v-for="account in filteredAccounts" :key="account.name" class="account-card">
           <h3>{{ account.name }}</h3>
           <div class="chip-row">
@@ -638,6 +720,14 @@ async function generateTables() {
 
       <section v-else-if="currentModule === 'bank'" class="module-grid">
         <section class="panel wide">
+          <div class="section-heading">
+            <h3>銀行帳戶</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportBanks(banks)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputBank?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputBank" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputBank, importBanks, banks as any, '銀行')" />
+            </div>
+          </div>
           <DataTable :rows="filteredBanks" :columns="['名稱', '餘額', '提款', '轉帳', '卡片', '帳號']">
             <template #default="{ row }">
               <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span></td>
@@ -653,7 +743,14 @@ async function generateTables() {
 
       <section v-else-if="currentModule === 'routine'" class="module-grid">
         <section class="panel wide">
-          <div class="section-heading"><h3>新增例行事項</h3></div>
+          <div class="section-heading">
+            <h3>新增例行事項</h3>
+            <div class="csv-actions">
+              <button class="csv-btn export" type="button" @click="exportRoutines(routines)"><Download :size="15" />匯出 CSV</button>
+              <button class="csv-btn import" type="button" @click="csvFileInputRoutine?.click()"><Upload :size="15" />匯入 CSV</button>
+              <input ref="csvFileInputRoutine" class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport(csvFileInputRoutine, importRoutines, routines as any, '例行事項')" />
+            </div>
+          </div>
           <form class="quick-form" @submit.prevent="addRoutine">
             <input v-model="quickForm.routineName" placeholder="名稱" />
             <input v-model="quickForm.routineDate" type="date" />
@@ -800,6 +897,12 @@ async function generateTables() {
           </p>
         </article>
       </section>
+
+      <Teleport to="body">
+        <div v-if="csvToast" :class="['csv-toast', { error: csvToast.isError }]">
+          {{ csvToast.message }}
+        </div>
+      </Teleport>
     </main>
   </div>
 </template>
