@@ -52,7 +52,8 @@ import {
   upsertBanks,
   upsertRoutines
 } from "~/utils/nhostMutations";
-import { createTablesDirect, deleteRecordsByName, insertRecord } from "~/utils/nhostCrud";
+import { createTablesDirect, deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
+import type { MediaLibrary } from "~/data/fengbro";
 
 type MenuItem = {
   id: string;
@@ -145,7 +146,8 @@ const isSidebarOpen = ref(false);
 const expandedMenus = ref<string[]>(["tools"]);
 const query = ref("");
 const activeTool = ref("price-compare");
-const dataSource = ref<"loading" | "nhost" | "fallback">("loading");
+const dataSource = ref<"loading" | "nhost" | "fallback" | "error" | "empty">("loading");
+const nhostError = ref("");
 const sourceMessage = ref("正在連線 Nhost GraphQL...");
 const loadedTables = ref<string[]>([]);
 const tableSql = createNhostTablesSql;
@@ -163,14 +165,15 @@ const nhostSettings = reactive({
 });
 const nhostSettingsStorageKey = "fengbro-nhost-settings";
 
-const subscriptions = ref<Subscription[]>(structuredClone(fallbackDataset.subscriptions));
-const foods = ref<Food[]>(structuredClone(fallbackDataset.foods));
-const articles = ref<Article[]>(structuredClone(fallbackDataset.articles));
-const banks = ref<Bank[]>(structuredClone(fallbackDataset.banks));
-const routines = ref<Routine[]>(structuredClone(fallbackDataset.routines));
-const commonAccounts = ref(structuredClone(fallbackDataset.commonAccounts));
-const mediaSeed = ref(structuredClone(fallbackDataset.mediaSeed));
-const financeWatch = ref(structuredClone(fallbackDataset.financeWatch));
+const emptyMedia: MediaLibrary = { images: [], videos: [], music: [], documents: [], podcasts: [] };
+const subscriptions = ref<Subscription[]>([]);
+const foods = ref<Food[]>([]);
+const articles = ref<Article[]>([]);
+const banks = ref<Bank[]>([]);
+const routines = ref<Routine[]>([]);
+const commonAccounts = ref<CommonAccount[]>([]);
+const mediaSeed = ref<MediaLibrary>({ ...emptyMedia });
+const financeWatch = ref<FinanceWatch[]>([]);
 
 const csvToast = ref<{ message: string; isError: boolean } | null>(null);
 let csvToastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -339,6 +342,14 @@ const crudStatus = ref("");
 const isCrudBusy = ref(false);
 const crudFileInput = ref<HTMLInputElement | null>(null);
 
+// ── Module-level edit state ───────────────────────────────────────────────────
+const editingSubId = ref("");
+const editingFoodId = ref("");
+const editingNoteId = ref("");
+const editingBankId = ref("");
+const editingRoutineId = ref("");
+const editingCommonId = ref("");
+
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
 const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
 const recurringSubscriptions = computed(() => subscriptions.value.filter((item) => item.continue).length);
@@ -374,6 +385,8 @@ const activeMediaIcon = computed<Component>(() => {
 const statusLabel = computed(() => {
   if (dataSource.value === "nhost") return "Nhost 實際資料";
   if (dataSource.value === "loading") return "連線中";
+  if (dataSource.value === "error") return "資料庫連線失敗";
+  if (dataSource.value === "empty") return "資料庫無資料";
   return "本地備援資料";
 });
 
@@ -382,28 +395,47 @@ onMounted(() => {
   loadNhostData();
 });
 
+function clearAllData() {
+  subscriptions.value = [];
+  foods.value = [];
+  articles.value = [];
+  banks.value = [];
+  routines.value = [];
+  commonAccounts.value = [];
+  mediaSeed.value = { ...emptyMedia };
+  financeWatch.value = [];
+}
+
 async function loadNhostData() {
   dataSource.value = "loading";
+  nhostError.value = "";
   sourceMessage.value = "正在連線 Nhost GraphQL...";
 
   try {
     const { dataset, loadedKeys } = await fetchNhostDataset(fallbackDataset, getNhostConnection());
-    subscriptions.value = dataset.subscriptions;
-    foods.value = dataset.foods;
-    articles.value = dataset.articles;
-    banks.value = dataset.banks;
-    routines.value = dataset.routines;
-    commonAccounts.value = dataset.commonAccounts;
-    mediaSeed.value = dataset.mediaSeed;
-    financeWatch.value = dataset.financeWatch;
     loadedTables.value = loadedKeys.map(String);
-    dataSource.value = loadedKeys.length ? "nhost" : "fallback";
-    sourceMessage.value = loadedKeys.length
-      ? `已從 Nhost 載入 ${loadedKeys.length} 組資料：${loadedKeys.join(", ")}`
-      : "Nhost 已連線，但沒有找到相符資料表，暫用本地備援資料。";
+
+    if (loadedKeys.length) {
+      subscriptions.value = dataset.subscriptions;
+      foods.value = dataset.foods;
+      articles.value = dataset.articles;
+      banks.value = dataset.banks;
+      routines.value = dataset.routines;
+      commonAccounts.value = dataset.commonAccounts;
+      mediaSeed.value = dataset.mediaSeed;
+      financeWatch.value = dataset.financeWatch;
+      dataSource.value = "nhost";
+      sourceMessage.value = `已從 Nhost 載入 ${loadedKeys.length} 組資料：${loadedKeys.join(", ")}`;
+    } else {
+      clearAllData();
+      dataSource.value = "empty";
+      sourceMessage.value = "Nhost 已連線，但資料庫尚無資料。請新增資料或匯入 CSV。";
+    }
   } catch (error) {
-    dataSource.value = "fallback";
-    sourceMessage.value = error instanceof Error ? error.message : "Nhost 連線失敗，暫用本地備援資料。";
+    clearAllData();
+    dataSource.value = "error";
+    nhostError.value = error instanceof Error ? error.message : "Nhost 連線失敗";
+    sourceMessage.value = nhostError.value;
   }
 }
 
@@ -547,19 +579,29 @@ function money(amount: number, currency = "TWD") {
   }).format(amount);
 }
 
-async function createWithNhost(table: string, object: Record<string, unknown>) {
-  const conn = getNhostConnection();
-  if (!conn.graphqlUrl) {
-    showCsvToast("未設定 Nhost GraphQL URL，先暫存在畫面。", true);
-    return false;
-  }
-
+async function createWithNhost(table: string, object: Record<string, unknown>): Promise<string | false> {
   try {
-    const result = await insertRecord(conn, table, object);
-    showCsvToast(result.message);
-    return result.ok;
+    const result = await insertRecord(getNhostConnection(), table, object);
+    if (result.ok) {
+      showCsvToast(`✓ ${result.message}`);
+      return result.id ?? "unknown";
+    }
+    showCsvToast(`⚠️ ${result.message}`, true);
+    return false;
   } catch (error) {
     showCsvToast(`寫入 Nhost 失敗：${error instanceof Error ? error.message : "未知錯誤"}`, true);
+    return false;
+  }
+}
+
+async function updateWithNhost(table: string, id: string, record: Record<string, unknown>): Promise<boolean> {
+  try {
+    const result = await updateRecord(getNhostConnection(), table, id, record);
+    if (result.ok) { showCsvToast(`✓ ${result.message}`); return true; }
+    showCsvToast(`⚠️ ${result.message}`, true);
+    return false;
+  } catch (error) {
+    showCsvToast(`更新 Nhost 失敗：${error instanceof Error ? error.message : "未知錯誤"}`, true);
     return false;
   }
 }
@@ -662,9 +704,23 @@ async function addMediaItem() {
   quickForm.mediaNote = "";
 }
 
+function startEditBank(row: Bank) {
+  editingBankId.value = row.id ?? "";
+  quickForm.bankName = row.name;
+  quickForm.bankDeposit = row.deposit;
+  quickForm.bankAccount = row.account;
+  quickForm.bankCard = row.card;
+}
+function cancelEditBank() {
+  editingBankId.value = "";
+  quickForm.bankName = "";
+  quickForm.bankDeposit = 0;
+  quickForm.bankAccount = "";
+  quickForm.bankCard = "";
+}
 async function addBank() {
   if (!quickForm.bankName) return;
-  const item: Bank = {
+  const record = {
     name: quickForm.bankName,
     deposit: Number(quickForm.bankDeposit || 0),
     site: "",
@@ -674,17 +730,38 @@ async function addBank() {
     card: quickForm.bankCard,
     account: quickForm.bankAccount
   };
-  await createWithNhost("bank", item);
-  banks.value.unshift(item);
+  if (editingBankId.value) {
+    const idx = banks.value.findIndex((b) => b.id === editingBankId.value);
+    if (idx >= 0) banks.value[idx] = { ...banks.value[idx], ...record };
+    await updateWithNhost("bank", editingBankId.value, record);
+    editingBankId.value = "";
+  } else {
+    const item: Bank = { ...record };
+    banks.value.unshift(item);
+    const newId = await createWithNhost("bank", record);
+    if (newId) banks.value[0] = { ...item, id: newId };
+  }
   quickForm.bankName = "";
   quickForm.bankDeposit = 0;
   quickForm.bankAccount = "";
   quickForm.bankCard = "";
 }
 
+function startEditSub(row: Subscription) {
+  editingSubId.value = row.id ?? "";
+  quickForm.subscriptionName = row.name;
+  quickForm.subscriptionDate = row.nextdate;
+  quickForm.subscriptionPrice = row.price;
+}
+function cancelEditSub() {
+  editingSubId.value = "";
+  quickForm.subscriptionName = "";
+  quickForm.subscriptionDate = "";
+  quickForm.subscriptionPrice = 0;
+}
 async function addSubscription() {
   if (!quickForm.subscriptionName || !quickForm.subscriptionDate) return;
-  const item: Subscription = {
+  const record = {
     name: quickForm.subscriptionName,
     site: "",
     price: Number(quickForm.subscriptionPrice || 0),
@@ -694,30 +771,37 @@ async function addSubscription() {
     currency: "TWD",
     continue: true
   };
-  await createWithNhost("subscription", item);
-  subscriptions.value.unshift(item);
-  quickForm.subscriptionName = "";
-  quickForm.subscriptionDate = "";
-  quickForm.subscriptionPrice = 0;
-  return;
-  subscriptions.value.unshift({
-    name: quickForm.subscriptionName,
-    site: "",
-    price: Number(quickForm.subscriptionPrice || 0),
-    nextdate: quickForm.subscriptionDate,
-    note: "畫面暫存，尚未寫回 Nhost",
-    account: "",
-    currency: "TWD",
-    continue: true
-  });
+  if (editingSubId.value) {
+    const idx = subscriptions.value.findIndex((s) => s.id === editingSubId.value);
+    if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], ...record };
+    await updateWithNhost("subscription", editingSubId.value, record);
+    editingSubId.value = "";
+  } else {
+    const item: Subscription = { ...record };
+    subscriptions.value.unshift(item);
+    const newId = await createWithNhost("subscription", record);
+    if (newId) subscriptions.value[0] = { ...item, id: newId };
+  }
   quickForm.subscriptionName = "";
   quickForm.subscriptionDate = "";
   quickForm.subscriptionPrice = 0;
 }
 
+function startEditFood(row: Food) {
+  editingFoodId.value = row.id ?? "";
+  quickForm.foodName = row.name;
+  quickForm.foodAmount = row.amount;
+  quickForm.foodDate = row.todate;
+}
+function cancelEditFood() {
+  editingFoodId.value = "";
+  quickForm.foodName = "";
+  quickForm.foodDate = "";
+  quickForm.foodAmount = 1;
+}
 async function addFood() {
   if (!quickForm.foodName || !quickForm.foodDate) return;
-  const item: Food = {
+  const record = {
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
     todate: quickForm.foodDate,
@@ -725,51 +809,70 @@ async function addFood() {
     price: 0,
     shop: "使用者新增"
   };
-  await createWithNhost("food", item);
-  foods.value.unshift(item);
-  quickForm.foodName = "";
-  quickForm.foodDate = "";
-  quickForm.foodAmount = 1;
-  return;
-  foods.value.unshift({
-    name: quickForm.foodName,
-    amount: Number(quickForm.foodAmount || 1),
-    todate: quickForm.foodDate,
-    photo: "",
-    price: 0,
-    shop: "畫面暫存，尚未寫回 Nhost"
-  });
+  if (editingFoodId.value) {
+    const idx = foods.value.findIndex((f) => f.id === editingFoodId.value);
+    if (idx >= 0) foods.value[idx] = { ...foods.value[idx], ...record };
+    await updateWithNhost("food", editingFoodId.value, record);
+    editingFoodId.value = "";
+  } else {
+    const item: Food = { ...record };
+    foods.value.unshift(item);
+    const newId = await createWithNhost("food", record);
+    if (newId) foods.value[0] = { ...item, id: newId };
+  }
   quickForm.foodName = "";
   quickForm.foodDate = "";
   quickForm.foodAmount = 1;
 }
 
+function startEditNote(row: Article) {
+  editingNoteId.value = row.id ?? "";
+  quickForm.noteTitle = row.title;
+  quickForm.noteContent = row.content;
+}
+function cancelEditNote() {
+  editingNoteId.value = "";
+  quickForm.noteTitle = "";
+  quickForm.noteContent = "";
+}
 async function addNote() {
   if (!quickForm.noteTitle || !quickForm.noteContent) return;
-  const item: Article = {
+  const record = {
     title: quickForm.noteTitle,
     content: quickForm.noteContent,
     category: "筆記",
     newDate: new Date().toISOString().slice(0, 10)
   };
-  await createWithNhost("article", item);
-  articles.value.unshift(item);
-  quickForm.noteTitle = "";
-  quickForm.noteContent = "";
-  return;
-  articles.value.unshift({
-    title: quickForm.noteTitle,
-    content: quickForm.noteContent,
-    category: "筆記",
-    newDate: new Date().toISOString().slice(0, 10)
-  });
+  if (editingNoteId.value) {
+    const idx = articles.value.findIndex((a) => a.id === editingNoteId.value);
+    if (idx >= 0) articles.value[idx] = { ...articles.value[idx], ...record };
+    await updateWithNhost("article", editingNoteId.value, record);
+    editingNoteId.value = "";
+  } else {
+    const item: Article = { ...record };
+    articles.value.unshift(item);
+    const newId = await createWithNhost("article", record);
+    if (newId) articles.value[0] = { ...item, id: newId };
+  }
   quickForm.noteTitle = "";
   quickForm.noteContent = "";
 }
 
+function startEditRoutine(row: Routine) {
+  editingRoutineId.value = row.id ?? "";
+  quickForm.routineName = row.name;
+  quickForm.routineDate = row.lastdate1;
+  quickForm.routineNote = row.note;
+}
+function cancelEditRoutine() {
+  editingRoutineId.value = "";
+  quickForm.routineName = "";
+  quickForm.routineDate = "";
+  quickForm.routineNote = "";
+}
 async function addRoutine() {
   if (!quickForm.routineName || !quickForm.routineDate) return;
-  const item: Routine = {
+  const record = {
     name: quickForm.routineName,
     note: quickForm.routineNote,
     lastdate1: quickForm.routineDate,
@@ -778,23 +881,20 @@ async function addRoutine() {
     link: "",
     photo: ""
   };
-  await createWithNhost("routine", item);
-  routines.value.unshift(item);
+  if (editingRoutineId.value) {
+    const idx = routines.value.findIndex((r) => r.id === editingRoutineId.value);
+    if (idx >= 0) routines.value[idx] = { ...routines.value[idx], ...record };
+    await updateWithNhost("routine", editingRoutineId.value, record);
+    editingRoutineId.value = "";
+  } else {
+    const item: Routine = { ...record };
+    routines.value.unshift(item);
+    const newId = await createWithNhost("routine", record);
+    if (newId) routines.value[0] = { ...item, id: newId };
+  }
   quickForm.routineName = "";
   quickForm.routineDate = "";
   quickForm.routineNote = "";
-  return;
-  routines.value.unshift({
-    name: quickForm.routineName,
-    note: "畫面暫存，尚未寫回 Nhost",
-    lastdate1: quickForm.routineDate,
-    lastdate2: "",
-    lastdate3: "",
-    link: "",
-    photo: ""
-  });
-  quickForm.routineName = "";
-  quickForm.routineDate = "";
 }
 
 function showCsvToast(message: string, isError = false) {
