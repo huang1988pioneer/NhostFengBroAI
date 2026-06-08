@@ -15,6 +15,12 @@ type GraphqlResponse<T> = {
   errors?: Array<{ message: string }>;
 };
 
+export type NhostConnection = {
+  graphqlUrl?: string;
+  adminSecret?: string;
+  authorization?: string;
+};
+
 type SchemaField = {
   name: string;
   type: SchemaTypeRef;
@@ -253,13 +259,20 @@ const tablePlans = [
 export async function fetchNhostDataset(base: FengbroDataset): Promise<{
   dataset: FengbroDataset;
   loadedKeys: Array<keyof FengbroDataset>;
+}>;
+export async function fetchNhostDataset(
+  base: FengbroDataset,
+  connection: NhostConnection = {}
+): Promise<{
+  dataset: FengbroDataset;
+  loadedKeys: Array<keyof FengbroDataset>;
 }> {
   const config = useRuntimeConfig();
-  if (!config.public.nhostGraphqlUrl) {
-    throw new Error("Missing NUXT_PUBLIC_NHOST_GRAPHQL_URL. Please set .env to load Nhost actual data.");
+  if (!connection.graphqlUrl && !config.public.nhostGraphqlUrl) {
+    throw new Error("請在設定頁輸入 Nhost GraphQL URL，或設定 NUXT_PUBLIC_NHOST_GRAPHQL_URL。");
   }
 
-  const schema = await graphql<SchemaData>(schemaQuery);
+  const schema = await graphql<SchemaData>(schemaQuery, connection);
   const { rootFields, typeFields } = indexSchema(schema);
   const selections: string[] = [];
   const activePlans: Array<TablePlan<string> & { table: string; selectedColumns: Record<string, string> }> = [];
@@ -290,7 +303,7 @@ export async function fetchNhostDataset(base: FengbroDataset): Promise<{
     return { dataset: base, loadedKeys: [] };
   }
 
-  const data = await graphql<Record<string, unknown[]>>(`query FengbroData { ${selections.join("\n")} }`);
+  const data = await graphql<Record<string, unknown[]>>(`query FengbroData { ${selections.join("\n")} }`, connection);
   const dataset: FengbroDataset = structuredClone(base);
   const loadedKeys: Array<keyof FengbroDataset> = [];
 
@@ -310,10 +323,10 @@ export async function fetchNhostDataset(base: FengbroDataset): Promise<{
   return { dataset, loadedKeys };
 }
 
-async function graphql<T>(query: string): Promise<T> {
+async function graphql<T>(query: string, connection: NhostConnection): Promise<T> {
   const response = await $fetch<GraphqlResponse<T>>("/api/nhost/graphql", {
     method: "POST",
-    body: { query }
+    body: { query, ...connection }
   });
 
   if (response.errors?.length) {

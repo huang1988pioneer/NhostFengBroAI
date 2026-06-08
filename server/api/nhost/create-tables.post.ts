@@ -7,21 +7,28 @@ type HasuraRunSqlResponse = {
   code?: string;
 };
 
-export default defineEventHandler(async () => {
+type CreateTablesBody = {
+  graphqlUrl?: string;
+  adminSecret?: string;
+};
+
+export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
-  const graphqlUrl = config.public.nhostGraphqlUrl;
+  const body = await readBody<CreateTablesBody>(event);
+  const graphqlUrl = body.graphqlUrl || config.public.nhostGraphqlUrl;
+  const adminSecret = body.adminSecret || config.nhostAdminSecret;
 
   if (!graphqlUrl || typeof graphqlUrl !== "string") {
     throw createError({
       statusCode: 500,
-      statusMessage: "Missing NUXT_PUBLIC_NHOST_GRAPHQL_URL"
+      statusMessage: "Missing Nhost GraphQL URL"
     });
   }
 
-  if (!config.nhostAdminSecret) {
+  if (!adminSecret) {
     throw createError({
       statusCode: 500,
-      statusMessage: "Missing NUXT_NHOST_ADMIN_SECRET"
+      statusMessage: "Missing Nhost admin secret"
     });
   }
 
@@ -30,7 +37,7 @@ export default defineEventHandler(async () => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-hasura-admin-secret": String(config.nhostAdminSecret)
+      "x-hasura-admin-secret": String(adminSecret)
     },
     body: {
       type: "run_sql",
@@ -69,4 +76,3 @@ function deriveHasuraQueryEndpoint(graphqlUrl: string) {
 
   return url.toString();
 }
-

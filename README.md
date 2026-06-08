@@ -11,7 +11,15 @@ Nuxt 版鋒兄個人資料工作台。此版本優先讀取 Nhost GraphQL 實際
 
 ## Nhost 設定
 
-建立 `.env`，可參考 `.env.example`：
+可直接在 App 的「設定」頁輸入 Nhost API 資訊：
+
+- `GraphQL URL`
+- `Hasura Admin Secret`
+- `Authorization Token`（可選）
+
+設定會儲存在目前瀏覽器的 `localStorage`。若不勾選「把 Admin Secret 一起儲存在此瀏覽器」，Admin Secret 只會保留在目前畫面狀態中。
+
+也可以建立 `.env`，可參考 `.env.example`：
 
 ```bash
 NUXT_PUBLIC_NHOST_GRAPHQL_URL=https://your-subdomain.graphql.your-region.nhost.run/v1
@@ -52,6 +60,7 @@ NUXT_NHOST_ADMIN_SECRET=your-hasura-admin-secret
 - `生成 Table`：呼叫 `/api/nhost/create-tables`，使用 `NUXT_NHOST_ADMIN_SECRET` 透過 Hasura `run_sql` 建立資料表。
 
 若未設定 `NUXT_NHOST_ADMIN_SECRET`，一鍵生成會失敗，但仍可複製 SQL 到 Nhost SQL Editor 手動執行。
+若已在設定頁輸入 Admin Secret，則不需要部署環境變數也能使用「生成 Table」。
 
 ## Development
 

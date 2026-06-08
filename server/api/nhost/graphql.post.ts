@@ -1,17 +1,20 @@
 type GraphqlBody = {
   query?: string;
   variables?: Record<string, unknown>;
+  graphqlUrl?: string;
+  adminSecret?: string;
+  authorization?: string;
 };
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const body = await readBody<GraphqlBody>(event);
-  const graphqlUrl = config.public.nhostGraphqlUrl;
+  const graphqlUrl = body.graphqlUrl || config.public.nhostGraphqlUrl;
 
   if (!graphqlUrl || typeof graphqlUrl !== "string") {
     throw createError({
       statusCode: 500,
-      statusMessage: "Missing NUXT_PUBLIC_NHOST_GRAPHQL_URL"
+      statusMessage: "Missing Nhost GraphQL URL"
     });
   }
 
@@ -22,7 +25,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const authorization = getHeader(event, "authorization");
+  const authorization = body.authorization || getHeader(event, "authorization");
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
@@ -31,8 +34,9 @@ export default defineEventHandler(async (event) => {
     headers.Authorization = authorization;
   }
 
-  if (config.nhostAdminSecret) {
-    headers["x-hasura-admin-secret"] = String(config.nhostAdminSecret);
+  const adminSecret = body.adminSecret || config.nhostAdminSecret;
+  if (adminSecret) {
+    headers["x-hasura-admin-secret"] = String(adminSecret);
   }
 
   return await $fetch(graphqlUrl, {
@@ -41,4 +45,3 @@ export default defineEventHandler(async (event) => {
     body
   });
 });
-

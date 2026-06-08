@@ -30,7 +30,7 @@ import {
 } from "@lucide/vue";
 import type { Component } from "vue";
 import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription } from "~/data/fengbro";
-import { fetchNhostDataset } from "~/utils/nhostData";
+import { fetchNhostDataset, type NhostConnection } from "~/utils/nhostData";
 import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
 
 type MenuItem = {
@@ -94,6 +94,15 @@ const loadedTables = ref<string[]>([]);
 const tableSql = createNhostTablesSql;
 const tableGenerationStatus = ref("");
 const isGeneratingTables = ref(false);
+const settingsStatus = ref("");
+const isSecretVisible = ref(false);
+const nhostSettings = reactive({
+  graphqlUrl: "",
+  adminSecret: "",
+  authorization: "",
+  rememberSecret: false
+});
+const nhostSettingsStorageKey = "fengbro-nhost-settings";
 
 const subscriptions = ref<Subscription[]>(structuredClone(fallbackDataset.subscriptions));
 const foods = ref<Food[]>(structuredClone(fallbackDataset.foods));
@@ -154,14 +163,17 @@ const statusLabel = computed(() => {
   return "本地備援資料";
 });
 
-onMounted(loadNhostData);
+onMounted(() => {
+  loadStoredNhostSettings();
+  loadNhostData();
+});
 
 async function loadNhostData() {
   dataSource.value = "loading";
   sourceMessage.value = "正在連線 Nhost GraphQL...";
 
   try {
-    const { dataset, loadedKeys } = await fetchNhostDataset(fallbackDataset);
+    const { dataset, loadedKeys } = await fetchNhostDataset(fallbackDataset, getNhostConnection());
     subscriptions.value = dataset.subscriptions;
     foods.value = dataset.foods;
     articles.value = dataset.articles;
@@ -212,6 +224,68 @@ function filterRows<T>(rows: T[], keyword: string): T[] {
   const normalized = keyword.trim().toLowerCase();
   if (!normalized) return rows;
   return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalized));
+}
+
+function getNhostConnection(): NhostConnection {
+  const graphqlUrl = nhostSettings.graphqlUrl.trim();
+  const adminSecret = nhostSettings.adminSecret.trim();
+  const authorization = nhostSettings.authorization.trim();
+
+  return {
+    graphqlUrl: graphqlUrl || undefined,
+    adminSecret: adminSecret || undefined,
+    authorization: authorization || undefined
+  };
+}
+
+function loadStoredNhostSettings() {
+  if (!import.meta.client) return;
+
+  const raw = localStorage.getItem(nhostSettingsStorageKey);
+  if (!raw) return;
+
+  try {
+    const stored = JSON.parse(raw) as Partial<typeof nhostSettings>;
+    nhostSettings.graphqlUrl = stored.graphqlUrl || "";
+    nhostSettings.authorization = stored.authorization || "";
+    nhostSettings.rememberSecret = Boolean(stored.rememberSecret);
+    nhostSettings.adminSecret = stored.rememberSecret ? stored.adminSecret || "" : "";
+  } catch {
+    localStorage.removeItem(nhostSettingsStorageKey);
+  }
+}
+
+function saveNhostSettings() {
+  if (!import.meta.client) return;
+
+  const payload = {
+    graphqlUrl: nhostSettings.graphqlUrl.trim(),
+    authorization: nhostSettings.authorization.trim(),
+    rememberSecret: nhostSettings.rememberSecret,
+    adminSecret: nhostSettings.rememberSecret ? nhostSettings.adminSecret.trim() : ""
+  };
+
+  localStorage.setItem(nhostSettingsStorageKey, JSON.stringify(payload));
+  settingsStatus.value = nhostSettings.rememberSecret
+    ? "已儲存 Nhost API 資訊到此瀏覽器。"
+    : "已儲存 URL/Token。Admin Secret 只保留在目前畫面。";
+}
+
+function clearNhostSettings() {
+  if (import.meta.client) {
+    localStorage.removeItem(nhostSettingsStorageKey);
+  }
+
+  nhostSettings.graphqlUrl = "";
+  nhostSettings.adminSecret = "";
+  nhostSettings.authorization = "";
+  nhostSettings.rememberSecret = false;
+  settingsStatus.value = "已清除瀏覽器中的 Nhost API 資訊。";
+}
+
+async function saveAndReloadNhostSettings() {
+  saveNhostSettings();
+  await loadNhostData();
 }
 
 function daysUntil(date: string) {
@@ -320,7 +394,8 @@ async function generateTables() {
 
   try {
     const result = await $fetch<{ ok: boolean; tables: number }>("/api/nhost/create-tables", {
-      method: "POST"
+      method: "POST",
+      body: getNhostConnection()
     });
     tableGenerationStatus.value = result.ok
       ? `已送出建表 SQL，預期建立 ${result.tables} 張資料表。`
@@ -596,6 +671,55 @@ async function generateTables() {
       </section>
 
       <section v-else-if="currentModule === 'settings'" class="module-grid">
+        <article class="panel wide">
+          <div class="section-heading">
+            <div>
+              <h3>Nhost API 資訊</h3>
+              <p class="section-note">輸入 Nhost 專案的 GraphQL URL 與權限資訊，儲存在目前瀏覽器。</p>
+            </div>
+            <div class="button-row">
+              <button type="button" @click="saveAndReloadNhostSettings">儲存並連線</button>
+              <button type="button" @click="clearNhostSettings">清除</button>
+            </div>
+          </div>
+          <div class="settings-form">
+            <label>
+              <span>GraphQL URL</span>
+              <input
+                v-model="nhostSettings.graphqlUrl"
+                autocomplete="off"
+                placeholder="https://your-subdomain.graphql.your-region.nhost.run/v1"
+              />
+            </label>
+            <label>
+              <span>Hasura Admin Secret</span>
+              <div class="secret-field">
+                <input
+                  v-model="nhostSettings.adminSecret"
+                  :type="isSecretVisible ? 'text' : 'password'"
+                  autocomplete="off"
+                  placeholder="用於生成 Table 或讀取受保護資料"
+                />
+                <button type="button" @click="isSecretVisible = !isSecretVisible">
+                  {{ isSecretVisible ? "隱藏" : "顯示" }}
+                </button>
+              </div>
+            </label>
+            <label>
+              <span>Authorization Token（可選）</span>
+              <input
+                v-model="nhostSettings.authorization"
+                autocomplete="off"
+                placeholder="Bearer eyJ..."
+              />
+            </label>
+            <label class="inline-check">
+              <input v-model="nhostSettings.rememberSecret" type="checkbox" />
+              <span>把 Admin Secret 一起儲存在此瀏覽器</span>
+            </label>
+          </div>
+          <p v-if="settingsStatus" class="status-message">{{ settingsStatus }}</p>
+        </article>
         <article class="panel wide">
           <h3>資料來源設定</h3>
           <div class="settings-list">
