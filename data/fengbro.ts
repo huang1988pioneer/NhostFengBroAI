@@ -1,4 +1,5 @@
 export type Subscription = {
+  id?: string;
   name: string;
   site: string;
   price: number;
@@ -10,6 +11,7 @@ export type Subscription = {
 };
 
 export type Food = {
+  id?: string;
   name: string;
   amount: number;
   todate: string;
@@ -19,6 +21,7 @@ export type Food = {
 };
 
 export type Article = {
+  id?: string;
   title: string;
   content: string;
   category: string;
@@ -26,11 +29,13 @@ export type Article = {
 };
 
 export type CommonAccount = {
+  id?: string;
   name: string;
   sites: Array<{ site: string; note: string }>;
 };
 
 export type Bank = {
+  id?: string;
   name: string;
   deposit: number;
   site: string;
@@ -42,6 +47,7 @@ export type Bank = {
 };
 
 export type Routine = {
+  id?: string;
   name: string;
   note: string;
   lastdate1: string;
@@ -60,6 +66,7 @@ export type MediaLibrary = {
 };
 
 export type FinanceWatch = {
+  id?: string;
   name: string;
   symbol: string;
   value: string;
@@ -75,6 +82,17 @@ export type FengbroDataset = {
   routines: Routine[];
   mediaSeed: MediaLibrary;
   financeWatch: FinanceWatch[];
+};
+
+export const emptyDataset: FengbroDataset = {
+  subscriptions: [],
+  foods: [],
+  articles: [],
+  commonAccounts: [],
+  banks: [],
+  routines: [],
+  mediaSeed: { images: [], videos: [], music: [], documents: [], podcasts: [] },
+  financeWatch: []
 };
 
 export const fallbackDataset: FengbroDataset = {

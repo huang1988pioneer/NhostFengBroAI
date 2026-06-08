@@ -29,11 +29,13 @@ export async function insertRecord(
     method: "POST",
     body: { action: "insert", table, record: object, ...conn }
   });
+  const id = result.row?.id;
+  const ok = Boolean(result.ok && id);
   return {
-    ok: result.ok,
-    affected: result.ok ? 1 : 0,
-    id: result.row?.id,
-    message: result.ok ? `已新增到 ${table}` : `${table} 未新增資料`
+    ok,
+    affected: ok ? 1 : 0,
+    id,
+    message: ok ? `已新增到 ${table}` : `${table} 未新增資料，請檢查 Hasura 權限或 Admin Secret`
   };
 }
 
@@ -47,10 +49,11 @@ export async function updateRecord(
     method: "POST",
     body: { action: "update", table, id, record, ...conn }
   });
+  const ok = Boolean(result.ok && result.row?.id);
   return {
-    ok: result.ok,
-    affected: result.ok ? 1 : 0,
-    message: result.ok ? `已更新 ${table}` : `${table} 更新失敗`
+    ok,
+    affected: ok ? 1 : 0,
+    message: ok ? `已更新 ${table}` : `${table} 更新失敗，請確認資料 id 與寫入權限`
   };
 }
 

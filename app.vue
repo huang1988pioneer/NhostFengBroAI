@@ -31,8 +31,8 @@ import {
   X
 } from "@lucide/vue";
 import type { Component } from "vue";
-import { fallbackDataset, type Article, type Bank, type Food, type Routine, type Subscription, type MediaLibrary, type FinanceWatch } from "~/data/fengbro";
-import { fetchNhostDataset, type NhostConnection } from "~/utils/nhostData";
+import { fallbackDataset, type Article, type Bank, type FengbroDataset, type Food, type Routine, type Subscription, type MediaLibrary, type FinanceWatch } from "~/data/fengbro";
+import { fetchNhostDataset, type NhostConnection, type NhostLoadResult } from "~/utils/nhostData";
 import { createNhostTablesSql, nhostTableSchemas } from "~/utils/nhostSchema";
 import {
   exportSubscriptions, importSubscriptions,
@@ -149,6 +149,7 @@ const dataSource = ref<"loading" | "nhost" | "fallback" | "error" | "empty">("lo
 const nhostError = ref("");
 const sourceMessage = ref("正在連線 Nhost GraphQL...");
 const loadedTables = ref<string[]>([]);
+const resolvedTableNames = ref<Record<string, string>>({});
 const tableSql = createNhostTablesSql;
 const tableGenerationStatus = ref("");
 const isGeneratingTables = ref(false);
@@ -348,6 +349,7 @@ const editingNoteId = ref("");
 const editingBankId = ref("");
 const editingRoutineId = ref("");
 const editingCommonId = ref("");
+const submitting = ref(false);
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
 const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
@@ -405,35 +407,72 @@ function clearAllData() {
   financeWatch.value = [];
 }
 
+function applyDataset(dataset: FengbroDataset) {
+  subscriptions.value = dataset.subscriptions;
+  foods.value = dataset.foods;
+  articles.value = dataset.articles;
+  banks.value = dataset.banks;
+  routines.value = dataset.routines;
+  commonAccounts.value = dataset.commonAccounts;
+  mediaSeed.value = dataset.mediaSeed;
+  financeWatch.value = dataset.financeWatch;
+}
+
+function datasetKeysWithData(dataset: FengbroDataset) {
+  const keys: string[] = [];
+  if (dataset.subscriptions.length) keys.push("subscriptions");
+  if (dataset.foods.length) keys.push("foods");
+  if (dataset.articles.length) keys.push("articles");
+  if (dataset.banks.length) keys.push("banks");
+  if (dataset.routines.length) keys.push("routines");
+  if (dataset.commonAccounts.length) keys.push("commonAccounts");
+  if (dataset.financeWatch.length) keys.push("financeWatch");
+  if (Object.values(dataset.mediaSeed).some((items) => items.length)) keys.push("mediaSeed");
+  return keys;
+}
+
+function isValidRecordId(id: unknown): id is string {
+  return typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id);
+}
+
+function canWriteToDatabase(): boolean {
+  const conn = getNhostConnection();
+  if (!conn.graphqlUrl) {
+    showCsvToast("⚠️ 尚未設定 Nhost GraphQL URL，無法寫入資料庫。請至設定頁面配置連線。", true);
+    return false;
+  }
+  if (dataSource.value === "error") {
+    showCsvToast("⚠️ 資料庫無法連線，無法寫入資料。請先修復連線後重試。", true);
+    return false;
+  }
+  return true;
+}
+
 async function loadNhostData() {
   dataSource.value = "loading";
   nhostError.value = "";
   sourceMessage.value = "正在連線 Nhost GraphQL...";
 
   try {
-    const { dataset, loadedKeys } = await fetchNhostDataset(fallbackDataset, getNhostConnection());
+    const result: NhostLoadResult = await fetchNhostDataset(fallbackDataset, getNhostConnection());
+    const { dataset, loadedKeys, resolvedTables } = result;
     loadedTables.value = loadedKeys.map(String);
+    resolvedTableNames.value = resolvedTables;
+    applyDataset(dataset);
 
-    if (loadedKeys.length) {
-      subscriptions.value = dataset.subscriptions;
-      foods.value = dataset.foods;
-      articles.value = dataset.articles;
-      banks.value = dataset.banks;
-      routines.value = dataset.routines;
-      commonAccounts.value = dataset.commonAccounts;
-      mediaSeed.value = dataset.mediaSeed;
-      financeWatch.value = dataset.financeWatch;
+    const populatedKeys = datasetKeysWithData(dataset);
+    if (populatedKeys.length) {
       dataSource.value = "nhost";
-      sourceMessage.value = `已從 Nhost 載入 ${loadedKeys.length} 組資料：${loadedKeys.join(", ")}`;
+      sourceMessage.value = `已從 Nhost 載入 ${populatedKeys.length} 組資料：${populatedKeys.join(", ")}`;
     } else {
-      clearAllData();
       dataSource.value = "empty";
-      sourceMessage.value = "Nhost 已連線，但資料庫尚無資料。請新增資料或匯入 CSV。";
+      sourceMessage.value = "資料庫無資料。請新增資料或匯入 CSV。";
     }
   } catch (error) {
     clearAllData();
+    resolvedTableNames.value = {};
     dataSource.value = "error";
-    nhostError.value = error instanceof Error ? error.message : "Nhost 連線失敗";
+    nhostError.value = error instanceof Error ? error.message : "資料庫無法連線";
     sourceMessage.value = nhostError.value;
   }
 }
@@ -578,12 +617,33 @@ function money(amount: number, currency = "TWD") {
   }).format(amount);
 }
 
+function resolveTableName(crudTable: string): string {
+  const keyMap: Record<string, string> = {
+    subscription: "subscriptions",
+    food: "foods",
+    article: "articles",
+    bank: "banks",
+    routine: "routines",
+    commonaccount: "commonAccounts",
+    image: "images",
+    video: "videos",
+    music: "music",
+    commondocument: "documents",
+    podcast: "podcasts"
+  };
+  const datasetKey = keyMap[crudTable];
+  return datasetKey ? (resolvedTableNames.value[datasetKey] || crudTable) : crudTable;
+}
+
 async function createWithNhost(table: string, object: Record<string, unknown>): Promise<string | false> {
+  if (!canWriteToDatabase()) return false;
+  const conn = getNhostConnection();
+  const actualTable = resolveTableName(table);
   try {
-    const result = await insertRecord(getNhostConnection(), table, object);
-    if (result.ok) {
+    const result = await insertRecord(conn, actualTable, object);
+    if (result.ok && isValidRecordId(result.id)) {
       showCsvToast(`✓ ${result.message}`);
-      return result.id ?? "unknown";
+      return result.id;
     }
     showCsvToast(`⚠️ ${result.message}`, true);
     return false;
@@ -594,8 +654,15 @@ async function createWithNhost(table: string, object: Record<string, unknown>): 
 }
 
 async function updateWithNhost(table: string, id: string, record: Record<string, unknown>): Promise<boolean> {
+  if (!canWriteToDatabase()) return false;
+  if (!isValidRecordId(id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法更新到資料庫。請重新載入資料。", true);
+    return false;
+  }
+  const conn = getNhostConnection();
+  const actualTable = resolveTableName(table);
   try {
-    const result = await updateRecord(getNhostConnection(), table, id, record);
+    const result = await updateRecord(conn, actualTable, id, record);
     if (result.ok) { showCsvToast(`✓ ${result.message}`); return true; }
     showCsvToast(`⚠️ ${result.message}`, true);
     return false;
@@ -607,6 +674,7 @@ async function updateWithNhost(table: string, id: string, record: Record<string,
 
 async function deleteFromNhostByName(table: string, name: string, removeLocal: () => void, field = "name") {
   const conn = getNhostConnection();
+  const actualTable = resolveTableName(table);
   if (!conn.graphqlUrl) {
     removeLocal();
     showCsvToast("未設定 Nhost GraphQL URL，已從畫面移除。");
@@ -614,7 +682,7 @@ async function deleteFromNhostByName(table: string, name: string, removeLocal: (
   }
 
   try {
-    const result = await deleteRecordsByName(conn, table, name, field);
+    const result = await deleteRecordsByName(conn, actualTable, name, field);
     removeLocal();
     showCsvToast(result.message);
   } catch (error) {
@@ -659,21 +727,54 @@ async function deleteMediaItem(name: string) {
   await deleteFromNhostByName(activeMediaTable(), name, () => removeMediaItem(activeMediaKey(), name));
 }
 
+function startEditCommon(row: CommonAccount) {
+  editingCommonId.value = row.id ?? "";
+  quickForm.commonName = row.name;
+  quickForm.commonSite = row.sites[0]?.site ?? "";
+  quickForm.commonNote = row.sites[0]?.note ?? "";
+}
+function cancelEditCommon() {
+  editingCommonId.value = "";
+  quickForm.commonName = "";
+  quickForm.commonSite = "";
+  quickForm.commonNote = "";
+}
+
 async function addCommonAccount() {
-  if (!quickForm.commonName || !quickForm.commonSite) return;
-  const item: CommonAccount = {
+  if (!quickForm.commonName || !quickForm.commonSite) {
+    showCsvToast("請填寫帳號和站台", true);
+    return;
+  }
+  const record = {
     name: quickForm.commonName,
     sites: [{ site: quickForm.commonSite, note: quickForm.commonNote }]
   };
-  await createWithNhost("commonaccount", item);
+  if (editingCommonId.value) {
+    const idx = commonAccounts.value.findIndex((c) => c.id === editingCommonId.value);
+    if (idx >= 0) commonAccounts.value[idx] = { ...commonAccounts.value[idx], ...record };
+    await updateWithNhost("commonaccount", editingCommonId.value, record);
+    editingCommonId.value = "";
+  } else {
+    const item: CommonAccount = { ...record };
   commonAccounts.value.unshift(item);
+  const newId = await createWithNhost("commonaccount", item);
+  if (newId) {
+    commonAccounts.value[0] = { ...item, id: newId };
+  } else {
+    commonAccounts.value = commonAccounts.value.filter((account) => account !== item);
+    return;
+  }
+  }
   quickForm.commonName = "";
   quickForm.commonSite = "";
   quickForm.commonNote = "";
 }
 
 async function addMediaItem() {
-  if (!quickForm.mediaName) return;
+  if (!quickForm.mediaName) {
+    showCsvToast("請填寫名稱", true);
+    return;
+  }
   const moduleToTable: Record<string, string> = {
     images: "image",
     videos: "video",
@@ -704,7 +805,11 @@ async function addMediaItem() {
 }
 
 function startEditBank(row: Bank) {
-  editingBankId.value = row.id ?? "";
+  if (!isValidRecordId(row.id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
+    return;
+  }
+  editingBankId.value = row.id;
   quickForm.bankName = row.name;
   quickForm.bankDeposit = row.deposit;
   quickForm.bankAccount = row.account;
@@ -718,7 +823,10 @@ function cancelEditBank() {
   quickForm.bankCard = "";
 }
 async function addBank() {
-  if (!quickForm.bankName) return;
+  if (!quickForm.bankName) {
+    showCsvToast("請填寫銀行名稱", true);
+    return;
+  }
   const record = {
     name: quickForm.bankName,
     deposit: Number(quickForm.bankDeposit || 0),
@@ -731,14 +839,21 @@ async function addBank() {
   };
   if (editingBankId.value) {
     const idx = banks.value.findIndex((b) => b.id === editingBankId.value);
+    const previous = idx >= 0 ? { ...banks.value[idx] } : null;
     if (idx >= 0) banks.value[idx] = { ...banks.value[idx], ...record };
-    await updateWithNhost("bank", editingBankId.value, record);
-    editingBankId.value = "";
+    const ok = await updateWithNhost("bank", editingBankId.value, record);
+    if (!ok && previous && idx >= 0) banks.value[idx] = previous;
+    if (ok) editingBankId.value = "";
   } else {
     const item: Bank = { ...record };
     banks.value.unshift(item);
     const newId = await createWithNhost("bank", record);
-    if (newId) banks.value[0] = { ...item, id: newId };
+    if (newId) {
+      banks.value[0] = { ...item, id: newId };
+    } else {
+      banks.value = banks.value.filter((bank) => bank !== item);
+      return;
+    }
   }
   quickForm.bankName = "";
   quickForm.bankDeposit = 0;
@@ -747,7 +862,11 @@ async function addBank() {
 }
 
 function startEditSub(row: Subscription) {
-  editingSubId.value = row.id ?? "";
+  if (!isValidRecordId(row.id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
+    return;
+  }
+  editingSubId.value = row.id;
   quickForm.subscriptionName = row.name;
   quickForm.subscriptionDate = row.nextdate;
   quickForm.subscriptionPrice = row.price;
@@ -759,35 +878,55 @@ function cancelEditSub() {
   quickForm.subscriptionPrice = 0;
 }
 async function addSubscription() {
-  if (!quickForm.subscriptionName || !quickForm.subscriptionDate) return;
-  const record = {
-    name: quickForm.subscriptionName,
-    site: "",
-    price: Number(quickForm.subscriptionPrice || 0),
-    nextdate: quickForm.subscriptionDate,
-    note: "使用者新增",
-    account: "",
-    currency: "TWD",
-    continue: true
-  };
-  if (editingSubId.value) {
-    const idx = subscriptions.value.findIndex((s) => s.id === editingSubId.value);
-    if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], ...record };
-    await updateWithNhost("subscription", editingSubId.value, record);
-    editingSubId.value = "";
-  } else {
-    const item: Subscription = { ...record };
-    subscriptions.value.unshift(item);
-    const newId = await createWithNhost("subscription", record);
-    if (newId) subscriptions.value[0] = { ...item, id: newId };
+  if (!quickForm.subscriptionName || !quickForm.subscriptionDate) {
+    showCsvToast("請填寫名稱和日期", true);
+    return;
   }
-  quickForm.subscriptionName = "";
-  quickForm.subscriptionDate = "";
-  quickForm.subscriptionPrice = 0;
+  if (submitting.value) return;
+  submitting.value = true;
+  try {
+    const record = {
+      name: quickForm.subscriptionName,
+      site: "",
+      price: Number(quickForm.subscriptionPrice || 0),
+      nextdate: quickForm.subscriptionDate,
+      note: "使用者新增",
+      account: "",
+      currency: "TWD",
+      continue: true
+    };
+    if (editingSubId.value) {
+      const idx = subscriptions.value.findIndex((s) => s.id === editingSubId.value);
+      const previous = idx >= 0 ? { ...subscriptions.value[idx] } : null;
+      if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], ...record };
+      const ok = await updateWithNhost("subscription", editingSubId.value, record);
+      if (!ok && previous && idx >= 0) subscriptions.value[idx] = previous;
+      if (ok) editingSubId.value = "";
+    } else {
+      const item: Subscription = { ...record };
+      subscriptions.value.unshift(item);
+      const newId = await createWithNhost("subscription", record);
+      if (newId) {
+        subscriptions.value[0] = { ...item, id: newId };
+      } else {
+        subscriptions.value = subscriptions.value.filter((sub) => sub !== item);
+        return;
+      }
+    }
+    quickForm.subscriptionName = "";
+    quickForm.subscriptionDate = "";
+    quickForm.subscriptionPrice = 0;
+  } finally {
+    submitting.value = false;
+  }
 }
 
 function startEditFood(row: Food) {
-  editingFoodId.value = row.id ?? "";
+  if (!isValidRecordId(row.id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
+    return;
+  }
+  editingFoodId.value = row.id;
   quickForm.foodName = row.name;
   quickForm.foodAmount = row.amount;
   quickForm.foodDate = row.todate;
@@ -799,7 +938,10 @@ function cancelEditFood() {
   quickForm.foodAmount = 1;
 }
 async function addFood() {
-  if (!quickForm.foodName || !quickForm.foodDate) return;
+  if (!quickForm.foodName || !quickForm.foodDate) {
+    showCsvToast("請填寫品名和到期日期", true);
+    return;
+  }
   const record = {
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
@@ -810,14 +952,21 @@ async function addFood() {
   };
   if (editingFoodId.value) {
     const idx = foods.value.findIndex((f) => f.id === editingFoodId.value);
+    const previous = idx >= 0 ? { ...foods.value[idx] } : null;
     if (idx >= 0) foods.value[idx] = { ...foods.value[idx], ...record };
-    await updateWithNhost("food", editingFoodId.value, record);
-    editingFoodId.value = "";
+    const ok = await updateWithNhost("food", editingFoodId.value, record);
+    if (!ok && previous && idx >= 0) foods.value[idx] = previous;
+    if (ok) editingFoodId.value = "";
   } else {
     const item: Food = { ...record };
     foods.value.unshift(item);
     const newId = await createWithNhost("food", record);
-    if (newId) foods.value[0] = { ...item, id: newId };
+    if (newId) {
+      foods.value[0] = { ...item, id: newId };
+    } else {
+      foods.value = foods.value.filter((food) => food !== item);
+      return;
+    }
   }
   quickForm.foodName = "";
   quickForm.foodDate = "";
@@ -825,7 +974,11 @@ async function addFood() {
 }
 
 function startEditNote(row: Article) {
-  editingNoteId.value = row.id ?? "";
+  if (!isValidRecordId(row.id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
+    return;
+  }
+  editingNoteId.value = row.id;
   quickForm.noteTitle = row.title;
   quickForm.noteContent = row.content;
 }
@@ -835,7 +988,10 @@ function cancelEditNote() {
   quickForm.noteContent = "";
 }
 async function addNote() {
-  if (!quickForm.noteTitle || !quickForm.noteContent) return;
+  if (!quickForm.noteTitle || !quickForm.noteContent) {
+    showCsvToast("請填寫標題和內容", true);
+    return;
+  }
   const record = {
     title: quickForm.noteTitle,
     content: quickForm.noteContent,
@@ -844,21 +1000,32 @@ async function addNote() {
   };
   if (editingNoteId.value) {
     const idx = articles.value.findIndex((a) => a.id === editingNoteId.value);
+    const previous = idx >= 0 ? { ...articles.value[idx] } : null;
     if (idx >= 0) articles.value[idx] = { ...articles.value[idx], ...record };
-    await updateWithNhost("article", editingNoteId.value, record);
-    editingNoteId.value = "";
+    const ok = await updateWithNhost("article", editingNoteId.value, record);
+    if (!ok && previous && idx >= 0) articles.value[idx] = previous;
+    if (ok) editingNoteId.value = "";
   } else {
     const item: Article = { ...record };
     articles.value.unshift(item);
     const newId = await createWithNhost("article", record);
-    if (newId) articles.value[0] = { ...item, id: newId };
+    if (newId) {
+      articles.value[0] = { ...item, id: newId };
+    } else {
+      articles.value = articles.value.filter((article) => article !== item);
+      return;
+    }
   }
   quickForm.noteTitle = "";
   quickForm.noteContent = "";
 }
 
 function startEditRoutine(row: Routine) {
-  editingRoutineId.value = row.id ?? "";
+  if (!isValidRecordId(row.id)) {
+    showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
+    return;
+  }
+  editingRoutineId.value = row.id;
   quickForm.routineName = row.name;
   quickForm.routineDate = row.lastdate1;
   quickForm.routineNote = row.note;
@@ -870,7 +1037,10 @@ function cancelEditRoutine() {
   quickForm.routineNote = "";
 }
 async function addRoutine() {
-  if (!quickForm.routineName || !quickForm.routineDate) return;
+  if (!quickForm.routineName || !quickForm.routineDate) {
+    showCsvToast("請填寫名稱和日期", true);
+    return;
+  }
   const record = {
     name: quickForm.routineName,
     note: quickForm.routineNote,
@@ -882,14 +1052,21 @@ async function addRoutine() {
   };
   if (editingRoutineId.value) {
     const idx = routines.value.findIndex((r) => r.id === editingRoutineId.value);
+    const previous = idx >= 0 ? { ...routines.value[idx] } : null;
     if (idx >= 0) routines.value[idx] = { ...routines.value[idx], ...record };
-    await updateWithNhost("routine", editingRoutineId.value, record);
-    editingRoutineId.value = "";
+    const ok = await updateWithNhost("routine", editingRoutineId.value, record);
+    if (!ok && previous && idx >= 0) routines.value[idx] = previous;
+    if (ok) editingRoutineId.value = "";
   } else {
     const item: Routine = { ...record };
     routines.value.unshift(item);
     const newId = await createWithNhost("routine", record);
-    if (newId) routines.value[0] = { ...item, id: newId };
+    if (newId) {
+      routines.value[0] = { ...item, id: newId };
+    } else {
+      routines.value = routines.value.filter((routine) => routine !== item);
+      return;
+    }
   }
   quickForm.routineName = "";
   quickForm.routineDate = "";
@@ -1053,8 +1230,11 @@ async function saveCrudRecord() {
       id: isEditing ? editingCrudId.value : undefined,
       record
     });
+    if (!result.ok || (!isEditing && !result.row?.id) || (isEditing && !result.row?.id)) {
+      throw new Error(isEditing ? "資料庫未確認更新成功。" : "資料庫未回傳新增 id，請檢查 Hasura 權限或 Admin Secret。");
+    }
     if (!isEditing) {
-      const realId = result.row?.id ? String(result.row.id) : optimisticId;
+      const realId = String(result.row.id);
       crudRows.value = crudRows.value.map((row) =>
         String(row.id) === optimisticId ? { ...row, id: realId, isOptimistic: false } : row
       );
@@ -1357,7 +1537,7 @@ function csvCell(value: unknown) {
         <button type="button" @click="loadNhostData">重試</button>
       </div>
       <div v-else-if="dataSource === 'empty'" class="data-state-banner empty">
-        <span>📭 資料庫尚無資料。請新增資料或匯入 CSV。</span>
+        <span>📭 資料庫無資料。請新增資料或匯入 CSV。</span>
         <button type="button" @click="navigate('settings')">前往設定</button>
       </div>
 
@@ -1367,8 +1547,8 @@ function csvCell(value: unknown) {
             <p class="panel-kicker">FengBro Console</p>
             <h2>鋒兄的個人資料中控台</h2>
             <p>
-              目前優先讀取 Nhost GraphQL 實際資料，包含訂閱、食品庫存、筆記、銀行、例行事項、媒體與金融追蹤。
-              若 Nhost 尚未設定或 schema 不相符，系統會清楚標示並暫用本地備援資料。
+              目前僅讀取 Nhost GraphQL 實際資料，包含訂閱、食品庫存、筆記、銀行、例行事項、媒體與金融追蹤。
+              連線失敗或資料庫無資料時，系統會清楚提示，不會顯示本地備援資料。
             </p>
           </div>
           <div class="hero-stack" aria-label="資料摘要">
@@ -1436,12 +1616,22 @@ function csvCell(value: unknown) {
             <input v-model="quickForm.subscriptionName" placeholder="名稱" :class="{ editing: editingSubId }" />
             <input v-model="quickForm.subscriptionDate" type="date" />
             <input v-model.number="quickForm.subscriptionPrice" min="0" type="number" placeholder="價格" />
-            <button type="submit">{{ editingSubId ? '更新訂閱' : '新增' }}</button>
+            <button type="submit" :disabled="submitting">{{ submitting ? '處理中...' : (editingSubId ? '更新訂閱' : '新增') }}</button>
             <button v-if="editingSubId" type="button" class="cancel-btn" @click="cancelEditSub">取消</button>
           </form>
         </section>
         <section class="panel wide">
-          <DataTable :rows="filteredSubscriptions" :columns="['名稱', '價格', '幣別', '下次日期', '帳號', '狀態']">
+          <div v-if="dataSource === 'error'" class="inline-status error">
+            <span>⚠️ 資料庫無法連線，請檢查網路或 Nhost 設定。</span>
+            <button type="button" class="retry-btn" @click="loadNhostData">重試</button>
+          </div>
+          <div v-else-if="dataSource === 'empty'" class="inline-status empty">
+            <span>📭 資料庫尚無訂閱資料。請在上方表單新增或匯入 CSV。</span>
+          </div>
+          <div v-else-if="filteredSubscriptions.length === 0 && dataSource === 'nhost'" class="inline-status empty">
+            <span>🔍 目前無符合條件的訂閱資料。</span>
+          </div>
+          <DataTable v-else :rows="filteredSubscriptions" :columns="['名稱', '價格', '幣別', '下次日期', '帳號', '狀態']">
             <template #default="{ row }">
               <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('subscription', row.name, () => removeSubscription(row.name))">刪除</button></div></td>
               <td>{{ money(row.price, row.currency) }}</td>

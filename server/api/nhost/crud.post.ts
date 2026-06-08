@@ -35,20 +35,54 @@ const crudTables: Record<string, CrudTableConfig> = {
   video: { table: "video", fields: ["id", "name", "url", "note"] }
 };
 
+// Support plural/alias table names that may be found in the Nhost schema
+const tableAliases: Record<string, string> = {
+  articles: "article",
+  notes: "article",
+  note: "article",
+  landtophistory: "article",
+  banks: "bank",
+  bank_accounts: "bank",
+  common_accounts: "commonaccount",
+  accounts: "commonaccount",
+  commonAccounts: "commonaccount",
+  foods: "food",
+  food_items: "food",
+  images: "image",
+  media_items: "image",
+  videos: "video",
+  podcasts: "podcast",
+  routines: "routine",
+  routine_items: "routine",
+  subscriptions: "subscription",
+  subscription_items: "subscription",
+  fengbro_subscriptions: "subscription"
+};
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const body = await readBody<CrudBody>(event);
   const action = body.action;
-  const tableConfig = body.table ? crudTables[body.table] : undefined;
+
+  // Resolve table name: check direct config, then aliases, then use as-is with a matching config
+  const rawTable = body.table || "";
+  const resolvedName = tableAliases[rawTable] || rawTable;
+  const tableConfig = crudTables[resolvedName]
+    ?? (crudTables[rawTable] ? { ...crudTables[rawTable], table: rawTable } : undefined)
+    ?? (tableAliases[rawTable] ? undefined : { table: rawTable, fields: crudTables[Object.keys(crudTables).find(k => rawTable.startsWith(k)) || ""]?.fields || [] });
+
   const graphqlUrl = body.graphqlUrl || config.public.nhostGraphqlUrl;
 
   if (!action) {
     throw createError({ statusCode: 400, statusMessage: "Missing CRUD action" });
   }
 
-  if (!tableConfig) {
-    throw createError({ statusCode: 400, statusMessage: "Unknown CRUD table" });
+  if (!tableConfig || !tableConfig.fields.length) {
+    throw createError({ statusCode: 400, statusMessage: `Unknown CRUD table: ${rawTable}` });
   }
+
+  // Use the actual DB table name from the request (may be plural/alias)
+  const dbTableName = rawTable;
 
   if (!graphqlUrl || typeof graphqlUrl !== "string") {
     throw createError({ statusCode: 400, statusMessage: "Missing Nhost GraphQL URL" });
@@ -66,57 +100,60 @@ export default defineEventHandler(async (event) => {
 
   if (action === "list") {
     const query = `query FengbroCrudList {
-      ${tableConfig.table} {
+      ${dbTableName} {
         ${tableConfig.fields.join("\n")}
       }
     }`;
     const response = await graphql<Record<string, Array<Record<string, unknown>>>>(graphqlUrl, headers, query);
-    return { ok: true, rows: response[tableConfig.table] || [] };
+    return { ok: true, rows: response[dbTableName] || [] };
   }
 
   if (action === "delete") {
     if (!body.id) throw createError({ statusCode: 400, statusMessage: "Missing row id" });
     const query = `mutation FengbroCrudDelete($id: uuid!) {
-      delete_${tableConfig.table}_by_pk(id: $id) {
+      delete_${dbTableName}_by_pk(id: $id) {
         id
       }
     }`;
     const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id });
-    return { ok: true, row: response[`delete_${tableConfig.table}_by_pk`] };
+    const row = response[`delete_${dbTableName}_by_pk`];
+    return { ok: Boolean(row?.id), row };
   }
 
   if (action === "insert") {
     const object = sanitizeRecord(tableConfig, body.record || {});
-    const query = `mutation FengbroCrudInsert($object: ${tableConfig.table}_insert_input!) {
-      insert_${tableConfig.table}_one(object: $object) {
+    const query = `mutation FengbroCrudInsert($object: ${dbTableName}_insert_input!) {
+      insert_${dbTableName}_one(object: $object) {
         id
       }
     }`;
     const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { object });
-    return { ok: true, row: response[`insert_${tableConfig.table}_one`] };
+    const row = response[`insert_${dbTableName}_one`];
+    return { ok: Boolean(row?.id), row };
   }
 
   if (action === "update") {
     if (!body.id) throw createError({ statusCode: 400, statusMessage: "Missing row id" });
     const set = sanitizeRecord(tableConfig, body.record || {});
-    const query = `mutation FengbroCrudUpdate($id: uuid!, $set: ${tableConfig.table}_set_input!) {
-      update_${tableConfig.table}_by_pk(pk_columns: { id: $id }, _set: $set) {
+    const query = `mutation FengbroCrudUpdate($id: uuid!, $set: ${dbTableName}_set_input!) {
+      update_${dbTableName}_by_pk(pk_columns: { id: $id }, _set: $set) {
         id
       }
     }`;
     const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id, set });
-    return { ok: true, row: response[`update_${tableConfig.table}_by_pk`] };
+    const row = response[`update_${dbTableName}_by_pk`];
+    return { ok: Boolean(row?.id), row };
   }
 
   if (action === "bulk-insert") {
     const objects = (body.records || []).map((record) => sanitizeRecord(tableConfig, record)).filter((record) => Object.keys(record).length);
-    const query = `mutation FengbroCrudBulkInsert($objects: [${tableConfig.table}_insert_input!]!) {
-      insert_${tableConfig.table}(objects: $objects) {
+    const query = `mutation FengbroCrudBulkInsert($objects: [${dbTableName}_insert_input!]!) {
+      insert_${dbTableName}(objects: $objects) {
         affected_rows
       }
     }`;
     const response = await graphql<Record<string, { affected_rows: number }>>(graphqlUrl, headers, query, { objects });
-    return { ok: true, affectedRows: response[`insert_${tableConfig.table}`]?.affected_rows || 0 };
+    return { ok: true, affectedRows: response[`insert_${dbTableName}`]?.affected_rows || 0 };
   }
 });
 

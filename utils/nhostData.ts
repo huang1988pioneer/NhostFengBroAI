@@ -1,13 +1,14 @@
-import type {
-  Article,
-  Bank,
-  CommonAccount,
-  FengbroDataset,
-  FinanceWatch,
-  Food,
-  MediaLibrary,
-  Routine,
-  Subscription
+import {
+  emptyDataset,
+  type Article,
+  type Bank,
+  type CommonAccount,
+  type FengbroDataset,
+  type FinanceWatch,
+  type Food,
+  type MediaLibrary,
+  type Routine,
+  type Subscription
 } from "~/data/fengbro";
 
 type GraphqlResponse<T> = {
@@ -94,6 +95,7 @@ const tablePlans = [
     key: "subscriptions",
     candidates: ["subscription", "subscriptions", "fengbro_subscriptions", "subscription_items"],
     columns: {
+      id: ["id"],
       name: ["name", "title", "subscription_name"],
       site: ["site", "url", "link"],
       price: ["price", "amount", "fee"],
@@ -106,6 +108,7 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): Subscription => ({
+          id: text(row.id),
           name: text(row.name),
           site: text(row.site),
           price: number(row.price),
@@ -113,7 +116,7 @@ const tablePlans = [
           note: text(row.note),
           account: text(row.account),
           currency: text(row.currency).toUpperCase() === "USD" ? "USD" : "TWD",
-          continue: boolean(row.active)
+          continue: boolean(row.active ?? row.continue ?? row.is_continue ?? row.enabled ?? row.is_active)
         })
       )
   },
@@ -121,6 +124,7 @@ const tablePlans = [
     key: "foods",
     candidates: ["food", "foods", "food_items", "fengbro_foods"],
     columns: {
+      id: ["id"],
       name: ["name", "title", "food_name"],
       amount: ["amount", "quantity", "qty"],
       todate: ["todate", "to_date", "expiry_date", "expire_date", "best_before"],
@@ -131,6 +135,7 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): Food => ({
+          id: text(row.id),
           name: text(row.name),
           amount: number(row.amount, 1),
           todate: dateText(row.todate),
@@ -138,12 +143,13 @@ const tablePlans = [
           price: number(row.price),
           shop: text(row.shop)
         })
-      )
+    )
   },
   {
     key: "articles",
     candidates: ["article", "landtophistory", "articles", "notes", "note", "fengbro_articles"],
     columns: {
+      id: ["id"],
       title: ["title", "name"],
       content: ["content", "body", "note", "description"],
       category: ["category", "type"],
@@ -152,17 +158,19 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): Article => ({
+          id: text(row.id),
           title: text(row.title),
           content: text(row.content),
           category: text(row.category) || "未分類",
           newDate: dateText(row.newDate)
         })
-      )
+    )
   },
   {
     key: "banks",
     candidates: ["bank", "banks", "bank_accounts", "fengbro_banks"],
     columns: {
+      id: ["id"],
       name: ["name", "bank_name", "title"],
       deposit: ["deposit", "balance", "amount"],
       site: ["site", "url", "link"],
@@ -175,6 +183,7 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): Bank => ({
+          id: text(row.id),
           name: text(row.name),
           deposit: number(row.deposit),
           site: text(row.site),
@@ -184,12 +193,13 @@ const tablePlans = [
           card: text(row.card),
           account: text(row.account)
         })
-      )
+    )
   },
   {
     key: "routines",
     candidates: ["routine", "routines", "routine_items", "fengbro_routines"],
     columns: {
+      id: ["id"],
       name: ["name", "title"],
       note: ["note", "notes", "description"],
       lastdate1: ["lastdate1", "last_date_1", "last_date", "date"],
@@ -201,6 +211,7 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): Routine => ({
+          id: text(row.id),
           name: text(row.name),
           note: text(row.note),
           lastdate1: dateText(row.lastdate1),
@@ -209,18 +220,20 @@ const tablePlans = [
           link: text(row.link),
           photo: text(row.photo)
         })
-      )
+    )
   },
   {
     key: "commonAccounts",
     candidates: ["commonaccount", "common_accounts", "accounts", "commonAccounts", "fengbro_accounts"],
     columns: {
+      id: ["id"],
       name: ["name", "email", "account"],
       sites: ["sites", "site", "services"]
     },
     normalize: (rows) =>
       rows.map(
         (row): CommonAccount => ({
+          id: text(row.id),
           name: text(row.name),
           sites: normalizeSites(row.sites)
         })
@@ -230,6 +243,7 @@ const tablePlans = [
     key: "financeWatch",
     candidates: ["finance_watch", "finance", "watchlist", "fengbro_finance_watch"],
     columns: {
+      id: ["id"],
       name: ["name", "title"],
       symbol: ["symbol", "ticker"],
       value: ["value", "price", "status"],
@@ -238,6 +252,7 @@ const tablePlans = [
     normalize: (rows) =>
       rows.map(
         (row): FinanceWatch => ({
+          id: text(row.id),
           name: text(row.name),
           symbol: text(row.symbol),
           value: text(row.value),
@@ -264,27 +279,28 @@ const appwriteMediaTables = [
   { table: "commondocument", key: "documents" }
 ] as const;
 
-export async function fetchNhostDataset(base: FengbroDataset): Promise<{
+export type NhostLoadResult = {
   dataset: FengbroDataset;
   loadedKeys: Array<keyof FengbroDataset>;
-}>;
+  resolvedTables: Record<string, string>;
+};
+
+export async function fetchNhostDataset(base: FengbroDataset): Promise<NhostLoadResult>;
 export async function fetchNhostDataset(
   base: FengbroDataset,
   connection: NhostConnection = {}
-): Promise<{
-  dataset: FengbroDataset;
-  loadedKeys: Array<keyof FengbroDataset>;
-}> {
+): Promise<NhostLoadResult> {
   const config = useRuntimeConfig();
   if (!connection.graphqlUrl && !config.public.nhostGraphqlUrl) {
-    throw new Error("請在設定頁輸入 Nhost GraphQL URL，或設定 NUXT_PUBLIC_NHOST_GRAPHQL_URL。");
+    throw new Error("資料庫無法連線：請在設定頁輸入 Nhost GraphQL URL，或設定 NUXT_PUBLIC_NHOST_GRAPHQL_URL。");
   }
 
   const schema = await graphql<SchemaData>(schemaQuery, connection);
   const { rootFields, typeFields } = indexSchema(schema);
   const selections: string[] = [];
   const activePlans: Array<TablePlan<string> & { table: string; selectedColumns: Record<string, string> }> = [];
-  const activeMediaPlans: Array<{ alias: string; key: keyof MediaLibrary }> = [];
+  const activeMediaPlans: Array<{ alias: string; key: keyof MediaLibrary; table: string }> = [];
+  const resolvedTables: Record<string, string> = {};
 
   for (const plan of tablePlans) {
     const table = plan.candidates.find((candidate) => rootFields.has(candidate));
@@ -305,6 +321,7 @@ export async function fetchNhostDataset(
     if (!fieldSelections.length) continue;
 
     activePlans.push({ ...plan, table, selectedColumns });
+    resolvedTables[String(plan.key)] = table;
     selections.push(`${plan.key}: ${table} { ${fieldSelections.join(" ")} }`);
   }
 
@@ -317,34 +334,37 @@ export async function fetchNhostDataset(
     if (!nameField) continue;
 
     const alias = `media_${mediaPlan.key}`;
-    activeMediaPlans.push({ alias, key: mediaPlan.key });
+    activeMediaPlans.push({ alias, key: mediaPlan.key, table: mediaPlan.table });
+    resolvedTables[mediaPlan.key] = mediaPlan.table;
     selections.push(`${alias}: ${mediaPlan.table} { name: ${nameField} }`);
   }
 
   if (!selections.length) {
-    return { dataset: base, loadedKeys: [] };
+    return { dataset: structuredClone(emptyDataset), loadedKeys: [], resolvedTables };
   }
 
   const data = await graphql<Record<string, unknown[]>>(`query FengbroData { ${selections.join("\n")} }`, connection);
-  const dataset: FengbroDataset = structuredClone(base);
+  const dataset: FengbroDataset = structuredClone(emptyDataset);
   const loadedKeys: Array<keyof FengbroDataset> = [];
 
   for (const plan of activePlans) {
     const rows = Array.isArray(data[plan.key]) ? (data[plan.key] as Array<Record<string, unknown>>) : [];
-    if (!rows.length) continue;
 
     if (plan.key === "mediaSeed") {
-      dataset.mediaSeed = plan.normalize(rows)[0] as MediaLibrary;
+      if (rows.length) {
+        dataset.mediaSeed = plan.normalize(rows)[0] as MediaLibrary;
+      } else {
+        dataset.mediaSeed = { images: [], videos: [], music: [], documents: [], podcasts: [] };
+      }
+      loadedKeys.push(plan.key);
     } else {
-      (dataset[plan.key] as unknown[]) = plan.normalize(rows);
+      (dataset[plan.key] as unknown[]) = rows.length ? plan.normalize(rows) : [];
+      loadedKeys.push(plan.key);
     }
-
-    loadedKeys.push(plan.key);
   }
 
   for (const mediaPlan of activeMediaPlans) {
     const rows = Array.isArray(data[mediaPlan.alias]) ? (data[mediaPlan.alias] as Array<Record<string, unknown>>) : [];
-    if (!rows.length) continue;
 
     dataset.mediaSeed[mediaPlan.key] = rows.map((row) => text(row.name)).filter(Boolean);
     if (!loadedKeys.includes("mediaSeed")) {
@@ -352,7 +372,7 @@ export async function fetchNhostDataset(
     }
   }
 
-  return { dataset, loadedKeys };
+  return { dataset, loadedKeys, resolvedTables };
 }
 
 async function graphql<T>(query: string, connection: NhostConnection): Promise<T> {
