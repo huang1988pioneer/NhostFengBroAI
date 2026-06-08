@@ -432,7 +432,8 @@ function datasetKeysWithData(dataset: FengbroDataset) {
 }
 
 function isValidRecordId(id: unknown): id is string {
-  return typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id);
+  // 更宽容的检查：只要是不为空的字符串就可以
+  return typeof id === "string" && id.trim().length > 0;
 }
 
 function canWriteToDatabase(): boolean {
@@ -511,7 +512,8 @@ function filterRows<T>(rows: T[], keyword: string): T[] {
 }
 
 function getNhostConnection(): NhostConnection {
-  const graphqlUrl = nhostSettings.graphqlUrl.trim();
+  const config = useRuntimeConfig();
+  const graphqlUrl = nhostSettings.graphqlUrl.trim() || (config.public.nhostGraphqlUrl as string) || "";
   const adminSecret = nhostSettings.adminSecret.trim();
   const authorization = nhostSettings.authorization.trim();
 
