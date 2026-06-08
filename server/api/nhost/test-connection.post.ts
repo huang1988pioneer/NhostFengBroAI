@@ -79,12 +79,22 @@ export default defineEventHandler(async (event) => {
     }
 
     const fields = response.data?.__schema?.queryType?.fields || [];
+    const sampleFields = fields.slice(0, 8).map((field) => field.name);
+
+    if (!fields.length || sampleFields.every((field) => field === "no_queries_available")) {
+      return {
+        ok: false,
+        error: "Nhost connected, but no public tables are tracked in GraphQL",
+        hint: "請到設定頁執行「生成 Table」，或在 Nhost Console 按 Track now，讓 public 資料表進入 Hasura GraphQL。"
+      };
+    }
+
     return {
       ok: true,
       graphqlUrl,
       queryType: response.data?.__schema?.queryType?.name || "query_root",
       rootFields: fields.length,
-      sampleFields: fields.slice(0, 8).map((field) => field.name)
+      sampleFields
     };
   } catch (error) {
     return {

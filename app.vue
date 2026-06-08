@@ -418,15 +418,15 @@ function downloadTableSql() {
 
 async function generateTables() {
   isGeneratingTables.value = true;
-  tableGenerationStatus.value = "正在請 Nhost 建立資料表...";
+  tableGenerationStatus.value = "正在建立資料表、Track 到 GraphQL，並匯入初始資料...";
 
   try {
-    const result = await $fetch<{ ok: boolean; tables: number }>("/api/nhost/create-tables", {
+    const result = await $fetch<{ ok: boolean; tables: number; tracked?: number; trackSkipped?: number }>("/api/nhost/create-tables", {
       method: "POST",
       body: getNhostConnection()
     });
     tableGenerationStatus.value = result.ok
-      ? `已送出建表 SQL，預期建立 ${result.tables} 張資料表。`
+      ? `已建立/確認 ${result.tables} 張資料表，Track ${result.tracked ?? 0} 張，略過已 Track ${result.trackSkipped ?? 0} 張，並已在空表匯入初始資料。`
       : "建表 API 已回應，但沒有確認成功。";
     await loadNhostData();
   } catch (error) {
@@ -767,13 +767,13 @@ async function generateTables() {
           <div class="section-heading">
             <div>
               <h3>生成 Nhost Table</h3>
-              <p class="section-note">產生鋒兄工作台需要的 public schema 資料表。</p>
+              <p class="section-note">產生 public schema 資料表、Track 到 GraphQL，並在空表匯入初始資料。</p>
             </div>
             <div class="button-row">
               <button type="button" @click="copyTableSql">複製 SQL</button>
               <button type="button" @click="downloadTableSql">下載 SQL</button>
               <button type="button" :disabled="isGeneratingTables" @click="generateTables">
-                {{ isGeneratingTables ? "生成中..." : "生成 Table" }}
+                {{ isGeneratingTables ? "生成中..." : "生成 / Track / 匯入" }}
               </button>
             </div>
           </div>
