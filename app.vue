@@ -52,6 +52,7 @@ import {
   upsertBanks,
   upsertRoutines
 } from "~/utils/nhostMutations";
+import { createTablesDirect, deleteRecordsByName, insertRecord } from "~/utils/nhostCrud";
 
 type MenuItem = {
   id: string;
@@ -70,8 +71,19 @@ type QuickForm = {
   foodDate: string;
   noteTitle: string;
   noteContent: string;
+  commonName: string;
+  commonSite: string;
+  commonNote: string;
+  mediaName: string;
+  mediaUrl: string;
+  mediaNote: string;
+  bankName: string;
+  bankDeposit: number;
+  bankAccount: string;
+  bankCard: string;
   routineName: string;
   routineDate: string;
+  routineNote: string;
 };
 
 const menuItems: MenuItem[] = [
@@ -148,8 +160,19 @@ const quickForm = reactive<QuickForm>({
   foodDate: "",
   noteTitle: "",
   noteContent: "",
+  commonName: "",
+  commonSite: "",
+  commonNote: "",
+  mediaName: "",
+  mediaUrl: "",
+  mediaNote: "",
+  bankName: "",
+  bankDeposit: 0,
+  bankAccount: "",
+  bankCard: "",
   routineName: "",
-  routineDate: ""
+  routineDate: "",
+  routineNote: ""
 });
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
@@ -359,8 +382,159 @@ function money(amount: number, currency = "TWD") {
   }).format(amount);
 }
 
-function addSubscription() {
+async function createWithNhost(table: string, object: Record<string, unknown>) {
+  const conn = getNhostConnection();
+  if (!conn.graphqlUrl) {
+    showCsvToast("未設定 Nhost GraphQL URL，先暫存在畫面。", true);
+    return false;
+  }
+
+  try {
+    const result = await insertRecord(conn, table, object);
+    showCsvToast(result.message);
+    return result.ok;
+  } catch (error) {
+    showCsvToast(`寫入 Nhost 失敗：${error instanceof Error ? error.message : "未知錯誤"}`, true);
+    return false;
+  }
+}
+
+async function deleteFromNhostByName(table: string, name: string, removeLocal: () => void, field = "name") {
+  const conn = getNhostConnection();
+  if (!conn.graphqlUrl) {
+    removeLocal();
+    showCsvToast("未設定 Nhost GraphQL URL，已從畫面移除。");
+    return;
+  }
+
+  try {
+    const result = await deleteRecordsByName(conn, table, name, field);
+    removeLocal();
+    showCsvToast(result.message);
+  } catch (error) {
+    showCsvToast(`刪除 Nhost 失敗：${error instanceof Error ? error.message : "未知錯誤"}`, true);
+  }
+}
+
+const removeSubscription = (name: string) => {
+  subscriptions.value = subscriptions.value.filter((item) => item.name !== name);
+};
+const removeFood = (name: string) => {
+  foods.value = foods.value.filter((item) => item.name !== name);
+};
+const removeArticle = (title: string) => {
+  articles.value = articles.value.filter((item) => item.title !== title);
+};
+const removeCommonAccount = (name: string) => {
+  commonAccounts.value = commonAccounts.value.filter((item) => item.name !== name);
+};
+const removeBank = (name: string) => {
+  banks.value = banks.value.filter((item) => item.name !== name);
+};
+const removeRoutine = (name: string) => {
+  routines.value = routines.value.filter((item) => item.name !== name);
+};
+const removeMediaItem = (key: keyof typeof mediaSeed.value, name: string) => {
+  mediaSeed.value[key] = mediaSeed.value[key].filter((item) => item !== name);
+};
+
+function activeMediaTable() {
+  if (currentModule.value === "documents") return "commondocument";
+  if (currentModule.value === "podcast") return "podcast";
+  return currentModule.value.slice(0, -1);
+}
+
+function activeMediaKey(): keyof typeof mediaSeed.value {
+  if (currentModule.value === "podcast") return "podcasts";
+  return currentModule.value as keyof typeof mediaSeed.value;
+}
+
+async function deleteMediaItem(name: string) {
+  await deleteFromNhostByName(activeMediaTable(), name, () => removeMediaItem(activeMediaKey(), name));
+}
+
+async function addCommonAccount() {
+  if (!quickForm.commonName || !quickForm.commonSite) return;
+  const item: CommonAccount = {
+    name: quickForm.commonName,
+    sites: [{ site: quickForm.commonSite, note: quickForm.commonNote }]
+  };
+  await createWithNhost("commonaccount", item);
+  commonAccounts.value.unshift(item);
+  quickForm.commonName = "";
+  quickForm.commonSite = "";
+  quickForm.commonNote = "";
+}
+
+async function addMediaItem() {
+  if (!quickForm.mediaName) return;
+  const moduleToTable: Record<string, string> = {
+    images: "image",
+    videos: "video",
+    music: "music",
+    documents: "commondocument",
+    podcast: "podcast"
+  };
+  const moduleToKey: Record<string, keyof typeof mediaSeed.value> = {
+    images: "images",
+    videos: "videos",
+    music: "music",
+    documents: "documents",
+    podcast: "podcasts"
+  };
+  const table = moduleToTable[currentModule.value];
+  const key = moduleToKey[currentModule.value];
+  if (!table || !key) return;
+
+  await createWithNhost(table, {
+    name: quickForm.mediaName,
+    url: quickForm.mediaUrl,
+    note: quickForm.mediaNote
+  });
+  mediaSeed.value[key].unshift(quickForm.mediaName);
+  quickForm.mediaName = "";
+  quickForm.mediaUrl = "";
+  quickForm.mediaNote = "";
+}
+
+async function addBank() {
+  if (!quickForm.bankName) return;
+  const item: Bank = {
+    name: quickForm.bankName,
+    deposit: Number(quickForm.bankDeposit || 0),
+    site: "",
+    withdrawals: 0,
+    transfer: 0,
+    activity: "",
+    card: quickForm.bankCard,
+    account: quickForm.bankAccount
+  };
+  await createWithNhost("bank", item);
+  banks.value.unshift(item);
+  quickForm.bankName = "";
+  quickForm.bankDeposit = 0;
+  quickForm.bankAccount = "";
+  quickForm.bankCard = "";
+}
+
+async function addSubscription() {
   if (!quickForm.subscriptionName || !quickForm.subscriptionDate) return;
+  const item: Subscription = {
+    name: quickForm.subscriptionName,
+    site: "",
+    price: Number(quickForm.subscriptionPrice || 0),
+    nextdate: quickForm.subscriptionDate,
+    note: "使用者新增",
+    account: "",
+    currency: "TWD",
+    continue: true
+  };
+  await createWithNhost("subscription", item);
+  subscriptions.value.unshift(item);
+  quickForm.subscriptionName = "";
+  quickForm.subscriptionDate = "";
+  quickForm.subscriptionPrice = 0;
+  return;
   subscriptions.value.unshift({
     name: quickForm.subscriptionName,
     site: "",
@@ -376,8 +550,22 @@ function addSubscription() {
   quickForm.subscriptionPrice = 0;
 }
 
-function addFood() {
+async function addFood() {
   if (!quickForm.foodName || !quickForm.foodDate) return;
+  const item: Food = {
+    name: quickForm.foodName,
+    amount: Number(quickForm.foodAmount || 1),
+    todate: quickForm.foodDate,
+    photo: "",
+    price: 0,
+    shop: "使用者新增"
+  };
+  await createWithNhost("food", item);
+  foods.value.unshift(item);
+  quickForm.foodName = "";
+  quickForm.foodDate = "";
+  quickForm.foodAmount = 1;
+  return;
   foods.value.unshift({
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
@@ -391,8 +579,19 @@ function addFood() {
   quickForm.foodAmount = 1;
 }
 
-function addNote() {
+async function addNote() {
   if (!quickForm.noteTitle || !quickForm.noteContent) return;
+  const item: Article = {
+    title: quickForm.noteTitle,
+    content: quickForm.noteContent,
+    category: "筆記",
+    newDate: new Date().toISOString().slice(0, 10)
+  };
+  await createWithNhost("article", item);
+  articles.value.unshift(item);
+  quickForm.noteTitle = "";
+  quickForm.noteContent = "";
+  return;
   articles.value.unshift({
     title: quickForm.noteTitle,
     content: quickForm.noteContent,
@@ -403,8 +602,23 @@ function addNote() {
   quickForm.noteContent = "";
 }
 
-function addRoutine() {
+async function addRoutine() {
   if (!quickForm.routineName || !quickForm.routineDate) return;
+  const item: Routine = {
+    name: quickForm.routineName,
+    note: quickForm.routineNote,
+    lastdate1: quickForm.routineDate,
+    lastdate2: "",
+    lastdate3: "",
+    link: "",
+    photo: ""
+  };
+  await createWithNhost("routine", item);
+  routines.value.unshift(item);
+  quickForm.routineName = "";
+  quickForm.routineDate = "";
+  quickForm.routineNote = "";
+  return;
   routines.value.unshift({
     name: quickForm.routineName,
     note: "畫面暫存，尚未寫回 Nhost",
@@ -504,6 +718,10 @@ async function generateTables() {
   tableGenerationStatus.value = "正在建立資料表、Track 到 GraphQL，並匯入初始資料...";
 
   try {
+    const directResult = await createTablesDirect(getNhostConnection(), tableSql);
+    tableGenerationStatus.value = directResult.ok ? `已送出建表 SQL：${directResult.resultType}。` : "建表沒有確認成功。";
+    await loadNhostData();
+    return;
     const result = await $fetch<{ ok: boolean; tables: number; tracked?: number; trackSkipped?: number }>("/api/nhost/create-tables", {
       method: "POST",
       body: getNhostConnection()
@@ -626,6 +844,12 @@ async function generateTables() {
               <small>{{ item.nextdate }} / {{ money(item.price, item.currency) }}</small>
             </article>
           </div>
+          <form class="quick-form" @submit.prevent="addCommonAccount">
+            <input v-model="quickForm.commonName" placeholder="帳號 / 名稱" />
+            <input v-model="quickForm.commonSite" placeholder="站台 / 服務" />
+            <input v-model="quickForm.commonNote" placeholder="備註" />
+            <button type="submit">新增常用</button>
+          </form>
         </section>
 
         <section class="panel">
@@ -664,7 +888,7 @@ async function generateTables() {
         <section class="panel wide">
           <DataTable :rows="filteredSubscriptions" :columns="['名稱', '價格', '幣別', '下次日期', '帳號', '狀態']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><button class="text-action danger" type="button" @click="deleteFromNhostByName('subscription', row.name, () => removeSubscription(row.name))">刪除</button></td>
               <td>{{ money(row.price, row.currency) }}</td>
               <td>{{ row.currency }}</td>
               <td>{{ row.nextdate }}<small>{{ daysUntil(row.nextdate) }}</small></td>
@@ -700,6 +924,7 @@ async function generateTables() {
           <div>
             <strong>{{ item.name }}</strong>
             <span>數量 {{ item.amount }} / 到期 {{ item.todate }} / {{ daysUntil(item.todate) }}</span>
+            <button class="text-action danger" type="button" @click="deleteFromNhostByName('food', item.name, () => removeFood(item.name))">刪除</button>
           </div>
         </article>
       </section>
@@ -726,6 +951,7 @@ async function generateTables() {
           <small>{{ item.category || "未分類" }} / {{ item.newDate }}</small>
           <h3>{{ item.title }}</h3>
           <p>{{ item.content }}</p>
+          <button class="text-action danger" type="button" @click="deleteFromNhostByName('article', item.title, () => removeArticle(item.title), 'title')">刪除</button>
         </article>
       </section>
 
@@ -747,14 +973,25 @@ async function generateTables() {
           <div class="chip-row">
             <span v-for="entry in account.sites" :key="`${account.name}-${entry.site}`" class="chip">{{ entry.site }}<small v-if="entry.note">{{ entry.note }}</small></span>
           </div>
+          <button class="text-action danger" type="button" @click="deleteFromNhostByName('commonaccount', account.name, () => removeCommonAccount(account.name))">刪除</button>
         </article>
       </section>
 
       <section v-else-if="['images', 'videos', 'music', 'documents', 'podcast'].includes(currentModule)" class="module-grid">
+        <section class="panel wide">
+          <div class="section-heading"><h3>新增媒體資料</h3></div>
+          <form class="quick-form" @submit.prevent="addMediaItem">
+            <input v-model="quickForm.mediaName" placeholder="名稱" />
+            <input v-model="quickForm.mediaUrl" placeholder="連結 / Storage URL" />
+            <input v-model="quickForm.mediaNote" placeholder="備註" />
+            <button type="submit">新增</button>
+          </form>
+        </section>
         <article v-for="item in activeMediaItems" :key="item" class="media-tile">
           <component :is="activeMediaIcon" :size="28" />
           <strong>{{ item }}</strong>
           <span>資料來源：{{ statusLabel }}</span>
+          <button class="text-action danger" type="button" @click="deleteMediaItem(item)">刪除</button>
         </article>
       </section>
 
@@ -770,9 +1007,16 @@ async function generateTables() {
               </label>
             </div>
           </div>
+          <form class="quick-form" @submit.prevent="addBank">
+            <input v-model="quickForm.bankName" placeholder="銀行 / 電子票證名稱" />
+            <input v-model.number="quickForm.bankDeposit" min="0" type="number" placeholder="餘額" />
+            <input v-model="quickForm.bankAccount" placeholder="帳號" />
+            <input v-model="quickForm.bankCard" placeholder="卡片 / 電子票證" />
+            <button type="submit">新增銀行</button>
+          </form>
           <DataTable :rows="filteredBanks" :columns="['名稱', '餘額', '提款', '轉帳', '卡片', '帳號']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><button class="text-action danger" type="button" @click="deleteFromNhostByName('bank', row.name, () => removeBank(row.name))">刪除</button></td>
               <td>{{ money(row.deposit) }}</td>
               <td>{{ row.withdrawals }}</td>
               <td>{{ row.transfer }}</td>
@@ -798,6 +1042,7 @@ async function generateTables() {
           <form class="quick-form" @submit.prevent="addRoutine">
             <input v-model="quickForm.routineName" placeholder="名稱" />
             <input v-model="quickForm.routineDate" type="date" />
+            <input v-model="quickForm.routineNote" placeholder="備註" />
             <button type="submit">新增</button>
           </form>
         </section>
@@ -808,6 +1053,7 @@ async function generateTables() {
           </div>
           <p>{{ item.note || "沒有備註" }}</p>
           <a v-if="item.link" :href="item.link" target="_blank">開啟連結</a>
+          <button class="text-action danger" type="button" @click="deleteFromNhostByName('routine', item.name, () => removeRoutine(item.name))">刪除</button>
         </article>
       </section>
 

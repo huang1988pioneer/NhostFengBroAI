@@ -1,5 +1,6 @@
 import type { NhostConnection } from "./nhostData";
 import type { Article, Bank, CommonAccount, Food, Routine, Subscription } from "~/data/fengbro";
+import { directGraphql } from "./nhostCrud";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -8,21 +9,14 @@ async function runMutation(
   query: string,
   variables: Record<string, unknown>
 ): Promise<{ inserted: number; errors?: string[] }> {
-  const result = await $fetch<{ data?: Record<string, { affected_rows: number }>; errors?: { message: string }[] }>(
-    "/api/nhost/graphql",
-    {
-      method: "POST",
-      body: { ...conn, query, variables }
-    }
-  );
-
-  if (result.errors?.length) {
-    return { inserted: 0, errors: result.errors.map((e) => e.message) };
+  try {
+    const data = await directGraphql<Record<string, { affected_rows: number }>>(conn, query, variables);
+    const key = Object.keys(data)[0];
+    const affected = key ? (data[key]?.affected_rows ?? 0) : 0;
+    return { inserted: affected };
+  } catch (error) {
+    return { inserted: 0, errors: [error instanceof Error ? error.message : "未知錯誤"] };
   }
-
-  const key = Object.keys(result.data ?? {})[0];
-  const affected = key ? (result.data?.[key]?.affected_rows ?? 0) : 0;
-  return { inserted: affected };
 }
 
 // ── Subscription ─────────────────────────────────────────────────────────────

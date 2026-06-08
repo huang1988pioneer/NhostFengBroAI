@@ -573,6 +573,23 @@ td small {
   font-weight: 700;
 }
 
+.text-action {
+  width: fit-content;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(31, 42, 35, 0.08);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.text-action.danger {
+  color: #8b2f24;
+  background: rgba(139, 47, 36, 0.1);
+}
+
 .routine-card,
 .tool-card,
 .media-tile {
