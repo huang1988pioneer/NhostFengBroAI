@@ -1,0 +1,143 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e10]:
+          - paragraph [ref=e11]: NhostFengBroAI
+          - strong [ref=e12]: 鋒兄資料工作台
+      - navigation "主選單" [ref=e13]:
+        - button "首頁" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+          - generic [ref=e18]: 首頁
+        - button "總覽" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e22]: 總覽
+        - button "訂閱" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e26]: 訂閱
+        - button "食品庫存 保存期限與數量" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e32]:
+            - text: 食品庫存
+            - generic [ref=e33]: 保存期限與數量
+        - button "筆記" [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+          - generic [ref=e38]: 筆記
+        - button "常用帳號" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e42]: 常用帳號
+        - button "圖片" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - generic [ref=e48]: 圖片
+        - button "影片" [ref=e49] [cursor=pointer]:
+          - img [ref=e50]
+          - generic [ref=e52]: 影片
+        - button "音樂" [ref=e53] [cursor=pointer]:
+          - img [ref=e54]
+          - generic [ref=e58]: 音樂
+        - button "文件" [ref=e59] [cursor=pointer]:
+          - img [ref=e60]
+          - generic [ref=e62]: 文件
+        - button "Podcast" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e68]: Podcast
+        - button "銀行 帳戶與卡片" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e72]:
+            - text: 銀行
+            - generic [ref=e73]: 帳戶與卡片
+        - button "例行事項" [ref=e74] [cursor=pointer]:
+          - img [ref=e75]
+          - generic [ref=e79]: 例行事項
+        - button "工具" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+          - generic [ref=e83]: 工具
+        - generic [ref=e84]:
+          - button "價格比較" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+            - generic [ref=e89]: 價格比較
+          - button "手機比較" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+            - generic [ref=e101]: 手機比較
+          - button "FengBro Tube" [ref=e102] [cursor=pointer]:
+            - img [ref=e103]
+            - generic [ref=e105]: FengBro Tube
+          - button "金融追蹤" [ref=e106] [cursor=pointer]:
+            - img [ref=e107]
+            - generic [ref=e110]: 金融追蹤
+        - button "設定" [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+          - generic [ref=e115]: 設定
+        - button "關於" [ref=e116] [cursor=pointer]:
+          - img [ref=e117]
+          - generic [ref=e119]: 關於
+      - generic [ref=e120]:
+        - img
+        - generic [ref=e125]: 本地備援資料：Missing NUXT_PUBLIC_NHOST_GRAPHQL_URL. Please set .env to load Nhost actual data.
+    - main [ref=e126]:
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - paragraph [ref=e129]: Nuxt Workspace
+          - heading "首頁" [level=1] [ref=e130]
+        - generic [ref=e131]:
+          - img [ref=e132]
+          - searchbox [ref=e135]
+      - generic [ref=e136]:
+        - generic [ref=e137]:
+          - generic [ref=e138]:
+            - paragraph [ref=e139]: FengBro Console
+            - heading "鋒兄的個人資料中控台" [level=2] [ref=e140]
+            - paragraph [ref=e141]: 目前優先讀取 Nhost GraphQL 實際資料，包含訂閱、食品庫存、筆記、銀行、例行事項、媒體與金融追蹤。 若 Nhost 尚未設定或 schema 不相符，系統會清楚標示並暫用本地備援資料。
+          - generic "資料摘要" [ref=e142]:
+            - generic [ref=e143]: 本地備援資料
+            - generic [ref=e144]: 2 筆訂閱
+            - generic [ref=e145]: 1 筆食品庫存
+            - generic [ref=e146]: 1 筆銀行資料
+        - generic [ref=e147]:
+          - article [ref=e148]:
+            - img [ref=e149]
+            - generic [ref=e151]: 持續訂閱
+            - strong [ref=e152]: "1"
+          - article [ref=e153]:
+            - img [ref=e154]
+            - generic [ref=e157]: TWD 訂閱支出
+            - strong [ref=e158]: $690
+          - article [ref=e159]:
+            - img [ref=e160]
+            - generic [ref=e163]: 食品庫存數量
+            - strong [ref=e164]: "4"
+          - article [ref=e165]:
+            - img [ref=e166]
+            - generic [ref=e168]: 銀行總餘額
+            - strong [ref=e169]: $1,000
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - heading "近期訂閱" [level=3] [ref=e172]
+            - button "查看訂閱" [ref=e173] [cursor=pointer]
+          - generic [ref=e174]:
+            - article [ref=e175]:
+              - generic [ref=e176]: 27 天
+              - strong [ref=e177]: ChatGPT Plus
+              - generic [ref=e178]: 2026-07-04 / $690
+            - article [ref=e179]:
+              - generic [ref=e180]: 8 天
+              - strong [ref=e181]: Proton Drive Plus 200 GB
+              - generic [ref=e182]: 2026-06-15 / US$5.00
+        - generic [ref=e183]:
+          - generic [ref=e184]:
+            - heading "最新筆記" [level=3] [ref=e185]
+            - button "查看" [ref=e186] [cursor=pointer]
+          - article [ref=e188]:
+            - strong [ref=e189]: Nhost 實際資料尚未載入
+            - generic [ref=e190]: 系統 / 2026-06-07
+  - generic:
+    - img
+  - generic [ref=e191]:
+    - button "Toggle Nuxt DevTools" [ref=e192] [cursor=pointer]:
+      - img [ref=e193]
+    - generic "App load time" [ref=e196]:
+      - generic [ref=e197]: "102"
+      - generic [ref=e198]: ms
+    - button "Toggle Component Inspector" [ref=e200] [cursor=pointer]:
+      - img [ref=e201]

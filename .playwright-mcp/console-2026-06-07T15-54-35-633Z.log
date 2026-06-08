@@ -1,0 +1,3 @@
+[    4434ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:3000/_nuxt/@vite/client:864
+[    7812ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Outdated Optimize Dep) @ http://127.0.0.1:3000/_nuxt/node_modules/.cache/vite/client/deps/@lucide_vue.js?v=8b755283:0
+[    7813ms] Failed to fetch dynamically imported module: http://127.0.0.1:3000/_nuxt/node_modules/nuxt/dist/app/entry.js?v=ab9ffb38

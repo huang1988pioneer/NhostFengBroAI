@@ -1004,7 +1004,7 @@ function editCrudRecord(row: Record<string, unknown>) {
   editingCrudId.value = String(row.id || "");
   for (const field of activeCrudConfig.value.fields) {
     const value = row[field.key];
-    crudDraft[field.key] = field.type === "json" ? JSON.stringify(value || [], null, 2) : formatCrudValue(value);
+    crudDraft[field.key] = field.type === "json" ? JSON.stringify(value || [], null, 2) : formatCrudValue(value, field.type);
   }
   crudStatus.value = editingCrudId.value ? `正在編輯 ${editingCrudId.value}` : "這筆資料沒有 id，無法更新。";
 }
@@ -1021,7 +1021,6 @@ function normalizeCrudDraft() {
 
   for (const field of activeCrudConfig.value.fields) {
     const raw = crudDraft[field.key] || "";
-    if (!raw && field.type !== "boolean") continue;
 
     if (field.type === "number") record[field.key] = Number(raw || 0);
     else if (field.type === "boolean") record[field.key] = raw === "true";
@@ -1032,15 +1031,17 @@ function normalizeCrudDraft() {
         record[field.key] = [];
       }
     } else if (field.type === "date") record[field.key] = raw ? raw.slice(0, 10) : null;
-    else record[field.key] = raw;
+    else if (raw) record[field.key] = raw;
+    // skip empty text fields (do not overwrite with empty string unless explicitly set)
   }
 
   return record;
 }
 
-function formatCrudValue(value: unknown) {
+function formatCrudValue(value: unknown, fieldType?: string) {
   if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value.slice(0, 10);
+  // Only slice date strings to 10 chars (YYYY-MM-DD), never truncate other text
+  if (typeof value === "string") return fieldType === "date" ? value.slice(0, 10) : value;
   return String(value);
 }
 

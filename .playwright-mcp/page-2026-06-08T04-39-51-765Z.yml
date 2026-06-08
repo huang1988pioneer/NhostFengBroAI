@@ -1,0 +1,146 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e10]:
+          - paragraph [ref=e11]: NhostFengBroAI
+          - strong [ref=e12]: 鋒兄資料工作台
+      - navigation "主選單" [ref=e13]:
+        - button "首頁" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+          - generic [ref=e18]: 首頁
+        - button "總覽" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e22]: 總覽
+        - button "訂閱" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e26]: 訂閱
+        - button "食品庫存 保存期限與數量" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e32]:
+            - text: 食品庫存
+            - generic [ref=e33]: 保存期限與數量
+        - button "筆記" [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+          - generic [ref=e38]: 筆記
+        - button "常用帳號" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e42]: 常用帳號
+        - button "圖片" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - generic [ref=e48]: 圖片
+        - button "影片" [ref=e49] [cursor=pointer]:
+          - img [ref=e50]
+          - generic [ref=e52]: 影片
+        - button "音樂" [ref=e53] [cursor=pointer]:
+          - img [ref=e54]
+          - generic [ref=e58]: 音樂
+        - button "文件" [ref=e59] [cursor=pointer]:
+          - img [ref=e60]
+          - generic [ref=e62]: 文件
+        - button "Podcast" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+          - generic [ref=e68]: Podcast
+        - button "銀行 帳戶與卡片" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e72]:
+            - text: 銀行
+            - generic [ref=e73]: 帳戶與卡片
+        - button "例行事項" [ref=e74] [cursor=pointer]:
+          - img [ref=e75]
+          - generic [ref=e79]: 例行事項
+        - button "工具" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+          - generic [ref=e83]: 工具
+        - generic [ref=e84]:
+          - button "價格比較" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+            - generic [ref=e89]: 價格比較
+          - button "手機比較" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+            - generic [ref=e101]: 手機比較
+          - button "FengBro Tube" [ref=e102] [cursor=pointer]:
+            - img [ref=e103]
+            - generic [ref=e105]: FengBro Tube
+          - button "金融追蹤" [ref=e106] [cursor=pointer]:
+            - img [ref=e107]
+            - generic [ref=e110]: 金融追蹤
+        - button "設定" [active] [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+          - generic [ref=e115]: 設定
+        - button "關於" [ref=e116] [cursor=pointer]:
+          - img [ref=e117]
+          - generic [ref=e119]: 關於
+      - generic [ref=e120]:
+        - img
+        - generic [ref=e124]: 本地備援資料：Missing NUXT_PUBLIC_NHOST_GRAPHQL_URL. Please set .env to load Nhost actual data.
+    - main [ref=e125]:
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - paragraph [ref=e128]: Nuxt Workspace
+          - heading "設定" [level=1] [ref=e204]
+        - generic [ref=e130]:
+          - img [ref=e131]
+          - searchbox [ref=e134]
+      - generic [ref=e205]:
+        - article [ref=e206]:
+          - heading "資料來源設定" [level=3] [ref=e207]
+          - generic [ref=e208]:
+            - generic [ref=e209]:
+              - checkbox "使用 Nhost GraphQL 實際資料" [disabled] [ref=e210]
+              - text: 使用 Nhost GraphQL 實際資料
+            - generic [ref=e211]:
+              - checkbox "已匹配資料表：尚未匹配" [disabled] [ref=e212]
+              - text: 已匹配資料表：尚未匹配
+            - generic [ref=e213]:
+              - checkbox "本地備援資料" [checked] [disabled] [ref=e214]
+              - text: 本地備援資料
+            - generic [ref=e215]:
+              - checkbox "新增表單目前只做前端暫存，尚未寫回 Nhost mutation" [disabled] [ref=e216]
+              - text: 新增表單目前只做前端暫存，尚未寫回 Nhost mutation
+        - article [ref=e217]:
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - heading "生成 Nhost Table" [level=3] [ref=e220]
+              - paragraph [ref=e221]: 產生鋒兄工作台需要的 public schema 資料表。
+            - generic [ref=e222]:
+              - button "複製 SQL" [ref=e223] [cursor=pointer]
+              - button "下載 SQL" [ref=e224] [cursor=pointer]
+              - button "生成 Table" [ref=e225] [cursor=pointer]
+          - generic [ref=e226]:
+            - article [ref=e227]:
+              - strong [ref=e228]: 訂閱
+              - generic [ref=e229]: public.subscriptions
+            - article [ref=e230]:
+              - strong [ref=e231]: 食品庫存
+              - generic [ref=e232]: public.foods
+            - article [ref=e233]:
+              - strong [ref=e234]: 筆記
+              - generic [ref=e235]: public.articles
+            - article [ref=e236]:
+              - strong [ref=e237]: 銀行
+              - generic [ref=e238]: public.banks
+            - article [ref=e239]:
+              - strong [ref=e240]: 例行事項
+              - generic [ref=e241]: public.routines
+            - article [ref=e242]:
+              - strong [ref=e243]: 常用帳號
+              - generic [ref=e244]: public.common_accounts
+            - article [ref=e245]:
+              - strong [ref=e246]: 媒體
+              - generic [ref=e247]: public.media_items
+            - article [ref=e248]:
+              - strong [ref=e249]: 金融追蹤
+              - generic [ref=e250]: public.finance_watch
+          - textbox [ref=e251]: create table if not exists public.subscriptions ( id uuid primary key default gen_random_uuid(), name text not null, site text default '', price numeric default 0, nextdate date, note text default '', account text default '', currency text default 'TWD', continue boolean default true, created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.foods ( id uuid primary key default gen_random_uuid(), name text not null, amount integer default 1, todate date, photo text default '', price numeric default 0, shop text default '', created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.articles ( id uuid primary key default gen_random_uuid(), title text not null, content text default '', category text default '', "newDate" date default current_date, created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.banks ( id uuid primary key default gen_random_uuid(), name text not null, deposit numeric default 0, site text default '', withdrawals integer default 0, transfer integer default 0, activity text default '', card text default '', account text default '', created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.routines ( id uuid primary key default gen_random_uuid(), name text not null, note text default '', lastdate1 date, lastdate2 date, lastdate3 date, link text default '', photo text default '', created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.common_accounts ( id uuid primary key default gen_random_uuid(), name text not null, sites jsonb default '[]'::jsonb, created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.media_items ( id uuid primary key default gen_random_uuid(), name text not null, type text not null, url text default '', created_at timestamptz default now(), updated_at timestamptz default now() ); create table if not exists public.finance_watch ( id uuid primary key default gen_random_uuid(), name text not null, symbol text default '', value text default '', note text default '', created_at timestamptz default now(), updated_at timestamptz default now() ); comment on table public.subscriptions is 'FengBro subscriptions'; comment on table public.foods is 'FengBro food inventory'; comment on table public.articles is 'FengBro notes'; comment on table public.banks is 'FengBro bank records'; comment on table public.routines is 'FengBro routines'; comment on table public.common_accounts is 'FengBro common accounts'; comment on table public.media_items is 'FengBro media library'; comment on table public.finance_watch is 'FengBro finance watchlist';
+  - generic:
+    - img
+  - generic [ref=e190]:
+    - button "Toggle Nuxt DevTools" [ref=e191] [cursor=pointer]:
+      - img [ref=e192]
+    - generic "App load time" [ref=e195]:
+      - generic [ref=e196]: "971"
+      - generic [ref=e197]: ms
+    - button "Toggle Component Inspector" [ref=e199] [cursor=pointer]:
+      - img [ref=e200]
