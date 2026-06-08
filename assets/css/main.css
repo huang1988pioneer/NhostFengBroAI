@@ -849,6 +849,90 @@ label.csv-btn {
   }
 }
 
+.hidden-input {
+  display: none;
+}
+
+.crud-select,
+.crud-form input,
+.crud-form select,
+.crud-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  padding: 11px 12px;
+  outline: 0;
+}
+
+.crud-select {
+  width: min(260px, 100%);
+  font-weight: 800;
+}
+
+.crud-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.crud-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.crud-form label > span {
+  color: var(--text);
+}
+
+.crud-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.crud-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crud-actions {
+  align-items: end;
+}
+
+.crud-actions button,
+.row-actions button {
+  border: 0;
+  border-radius: 12px;
+  background: rgba(31, 42, 35, 0.08);
+  color: var(--text);
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.crud-actions button:first-child {
+  background: #1f2a23;
+  color: #fff;
+}
+
+.crud-table-wrap {
+  margin-top: 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.crud-table-wrap table {
+  min-width: 1040px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 88px minmax(0, 1fr);
@@ -961,7 +1045,8 @@ label.csv-btn {
 
   .timeline article,
   .quick-form,
-  .quick-form.note-form {
+  .quick-form.note-form,
+  .crud-form {
     grid-template-columns: 1fr;
   }
 

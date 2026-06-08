@@ -86,6 +86,31 @@ type QuickForm = {
   routineNote: string;
 };
 
+type CrudField = {
+  key: string;
+  label: string;
+  type?: "text" | "number" | "date" | "boolean" | "json";
+};
+
+type CrudConfig = {
+  table: string;
+  label: string;
+  filename: string;
+  fields: CrudField[];
+};
+
+type CrudResponse = {
+  ok: boolean;
+  rows?: Array<Record<string, unknown>>;
+  row?: Record<string, unknown> | null;
+  affectedRows?: number;
+};
+
+type OptimisticCrudRow = Record<string, unknown> & {
+  id: string;
+  isOptimistic?: boolean;
+};
+
 const menuItems: MenuItem[] = [
   { id: "home", label: "首頁", icon: Home },
   { id: "dashboard", label: "總覽", icon: BarChart3 },
@@ -175,7 +200,147 @@ const quickForm = reactive<QuickForm>({
   routineNote: ""
 });
 
+const crudConfigs: CrudConfig[] = [
+  {
+    table: "subscription",
+    label: "鋒兄訂閱",
+    filename: "appwrite-subscription.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "site", label: "網站" },
+      { key: "price", label: "價格", type: "number" },
+      { key: "nextdate", label: "下次日期", type: "date" },
+      { key: "note", label: "備註" },
+      { key: "account", label: "帳號" },
+      { key: "currency", label: "幣別" },
+      { key: "continue", label: "持續", type: "boolean" }
+    ]
+  },
+  {
+    table: "food",
+    label: "鋒兄食品",
+    filename: "appwrite-food.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "amount", label: "數量", type: "number" },
+      { key: "todate", label: "保存期限", type: "date" },
+      { key: "photo", label: "照片" },
+      { key: "price", label: "價格", type: "number" },
+      { key: "shop", label: "商店" }
+    ]
+  },
+  {
+    table: "article",
+    label: "鋒兄筆記",
+    filename: "appwrite-article.csv",
+    fields: [
+      { key: "title", label: "標題" },
+      { key: "content", label: "內容" },
+      { key: "category", label: "分類" },
+      { key: "newDate", label: "日期", type: "date" }
+    ]
+  },
+  {
+    table: "commonaccount",
+    label: "鋒兄常用",
+    filename: "appwrite-commonaccount.csv",
+    fields: [
+      { key: "name", label: "帳號" },
+      { key: "sites", label: "站台 JSON", type: "json" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "image",
+    label: "鋒兄圖片",
+    filename: "appwrite-image.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "url", label: "URL" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "video",
+    label: "鋒兄影片",
+    filename: "appwrite-video.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "url", label: "URL" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "music",
+    label: "鋒兄音樂",
+    filename: "appwrite-music.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "url", label: "URL" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "commondocument",
+    label: "鋒兄文件",
+    filename: "appwrite-commondocument.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "url", label: "URL" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "podcast",
+    label: "鋒兄播客",
+    filename: "appwrite-podcast.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "url", label: "URL" },
+      { key: "note", label: "備註" }
+    ]
+  },
+  {
+    table: "bank",
+    label: "鋒兄銀行",
+    filename: "appwrite-bank.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "deposit", label: "餘額", type: "number" },
+      { key: "site", label: "網站" },
+      { key: "withdrawals", label: "提款", type: "number" },
+      { key: "transfer", label: "轉帳", type: "number" },
+      { key: "activity", label: "活動" },
+      { key: "card", label: "卡片" },
+      { key: "account", label: "帳號" }
+    ]
+  },
+  {
+    table: "routine",
+    label: "鋒兄例行",
+    filename: "appwrite-routine.csv",
+    fields: [
+      { key: "name", label: "名稱" },
+      { key: "note", label: "備註" },
+      { key: "lastdate1", label: "日期1", type: "date" },
+      { key: "lastdate2", label: "日期2", type: "date" },
+      { key: "lastdate3", label: "日期3", type: "date" },
+      { key: "link", label: "連結" },
+      { key: "photo", label: "照片" }
+    ]
+  }
+];
+
+const activeCrudTable = ref("subscription");
+const crudRows = ref<Array<Record<string, unknown>>>([]);
+const crudDraft = reactive<Record<string, string>>({});
+const editingCrudId = ref("");
+const crudStatus = ref("");
+const isCrudBusy = ref(false);
+const crudFileInput = ref<HTMLInputElement | null>(null);
+
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
+const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
 const recurringSubscriptions = computed(() => subscriptions.value.filter((item) => item.continue).length);
 const totalTwdSubscriptions = computed(() => subscriptions.value.filter((item) => item.currency === "TWD").reduce((sum, item) => sum + item.price, 0));
 const totalUsdSubscriptions = computed(() => subscriptions.value.filter((item) => item.currency === "USD").reduce((sum, item) => sum + item.price, 0));
@@ -739,6 +904,281 @@ async function generateTables() {
     isGeneratingTables.value = false;
   }
 }
+
+async function callCrudApi(body: Record<string, unknown>) {
+  return await $fetch<CrudResponse>("/api/nhost/crud", {
+    method: "POST",
+    body: {
+      ...body,
+      table: activeCrudConfig.value.table,
+      ...getNhostConnection()
+    }
+  });
+}
+
+async function loadCrudRows() {
+  isCrudBusy.value = true;
+  crudStatus.value = `正在讀取 ${activeCrudConfig.value.label}...`;
+
+  try {
+    const result = await callCrudApi({ action: "list" });
+    crudRows.value = result.rows || [];
+    crudStatus.value = `已讀取 ${crudRows.value.length} 筆 ${activeCrudConfig.value.label}。`;
+    resetCrudDraft();
+  } catch (error) {
+    crudStatus.value = error instanceof Error ? `讀取失敗：${error.message}` : "讀取失敗。";
+  } finally {
+    isCrudBusy.value = false;
+  }
+}
+
+async function saveCrudRecord() {
+  isCrudBusy.value = true;
+  const isEditing = Boolean(editingCrudId.value);
+  const record = normalizeCrudDraft();
+  const previousRows = [...crudRows.value];
+  const optimisticId = isEditing ? editingCrudId.value : `optimistic-${Date.now()}`;
+
+  crudStatus.value = isEditing ? "正在更新資料庫，畫面已先更新..." : "正在新增到資料庫，畫面已先新增...";
+  if (isEditing) {
+    crudRows.value = crudRows.value.map((row) =>
+      String(row.id) === editingCrudId.value ? { ...row, ...record } : row
+    );
+  } else {
+    crudRows.value = [{ id: optimisticId, ...record, isOptimistic: true }, ...crudRows.value];
+  }
+
+  try {
+    const result = await callCrudApi({
+      action: isEditing ? "update" : "insert",
+      id: isEditing ? editingCrudId.value : undefined,
+      record
+    });
+    if (!isEditing) {
+      const realId = result.row?.id ? String(result.row.id) : optimisticId;
+      crudRows.value = crudRows.value.map((row) =>
+        String(row.id) === optimisticId ? { ...row, id: realId, isOptimistic: false } : row
+      );
+    }
+    crudStatus.value = isEditing ? "已更新資料庫。" : "已新增到資料庫。";
+    resetCrudDraft();
+    await loadNhostData();
+  } catch (error) {
+    crudRows.value = previousRows;
+    crudStatus.value = error instanceof Error ? `儲存失敗：${error.message}` : "儲存失敗。";
+  } finally {
+    isCrudBusy.value = false;
+  }
+}
+
+async function deleteCrudRecord(row: Record<string, unknown>) {
+  const id = String(row.id || "");
+  const name = String(row.name || row.title || id);
+  if (!id) {
+    crudStatus.value = "刪除失敗：這筆資料沒有 id。";
+    return;
+  }
+  if (!window.confirm(`確定要刪除「${name}」？刪除後會寫入資料庫，無法只靠瀏覽器暫存還原。`)) {
+    crudStatus.value = "已取消刪除。";
+    return;
+  }
+
+  isCrudBusy.value = true;
+  const previousRows = [...crudRows.value];
+  crudRows.value = crudRows.value.filter((item) => String(item.id) !== id);
+  crudStatus.value = "正在刪除資料庫資料，畫面已先移除...";
+
+  try {
+    await callCrudApi({ action: "delete", id });
+    crudStatus.value = "已從資料庫刪除。";
+    await loadNhostData();
+  } catch (error) {
+    crudRows.value = previousRows;
+    crudStatus.value = error instanceof Error ? `刪除失敗：${error.message}` : "刪除失敗。";
+  } finally {
+    isCrudBusy.value = false;
+  }
+}
+
+function editCrudRecord(row: Record<string, unknown>) {
+  editingCrudId.value = String(row.id || "");
+  for (const field of activeCrudConfig.value.fields) {
+    const value = row[field.key];
+    crudDraft[field.key] = field.type === "json" ? JSON.stringify(value || [], null, 2) : formatCrudValue(value);
+  }
+  crudStatus.value = editingCrudId.value ? `正在編輯 ${editingCrudId.value}` : "這筆資料沒有 id，無法更新。";
+}
+
+function resetCrudDraft() {
+  editingCrudId.value = "";
+  for (const field of activeCrudConfig.value.fields) {
+    crudDraft[field.key] = field.type === "boolean" ? "false" : "";
+  }
+}
+
+function normalizeCrudDraft() {
+  const record: Record<string, unknown> = {};
+
+  for (const field of activeCrudConfig.value.fields) {
+    const raw = crudDraft[field.key] || "";
+    if (!raw && field.type !== "boolean") continue;
+
+    if (field.type === "number") record[field.key] = Number(raw || 0);
+    else if (field.type === "boolean") record[field.key] = raw === "true";
+    else if (field.type === "json") {
+      try {
+        record[field.key] = raw ? JSON.parse(raw) : [];
+      } catch {
+        record[field.key] = [];
+      }
+    } else if (field.type === "date") record[field.key] = raw ? raw.slice(0, 10) : null;
+    else record[field.key] = raw;
+  }
+
+  return record;
+}
+
+function formatCrudValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.slice(0, 10);
+  return String(value);
+}
+
+function crudPlaceholder(field: CrudField) {
+  return field.type === "json" ? '[{"site":"Nhost","note":""}]' : field.label;
+}
+
+async function importCrudCsv(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  isCrudBusy.value = true;
+  crudStatus.value = `正在匯入 ${file.name}...`;
+  const previousRows = [...crudRows.value];
+
+  try {
+    const csv = await file.text();
+    const records = parseCsv(csv).map((row) => normalizeCsvRow(activeCrudConfig.value, row));
+    const optimisticRows: OptimisticCrudRow[] = records.map((record, index) => ({
+      id: `optimistic-import-${Date.now()}-${index}`,
+      ...record,
+      isOptimistic: true
+    }));
+    crudRows.value = [...optimisticRows, ...crudRows.value];
+    const result = await callCrudApi({ action: "bulk-insert", records });
+    crudStatus.value = `已匯入 ${result.affectedRows ?? records.length} 筆 ${activeCrudConfig.value.label}。`;
+    await loadCrudRows();
+    await loadNhostData();
+  } catch (error) {
+    crudRows.value = previousRows;
+    crudStatus.value = error instanceof Error ? `匯入失敗：${error.message}` : "匯入失敗。";
+  } finally {
+    isCrudBusy.value = false;
+    input.value = "";
+  }
+}
+
+function exportCrudCsv() {
+  const csv = toCsv(crudRows.value.map((row) => normalizeExportRow(activeCrudConfig.value, row)));
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = activeCrudConfig.value.filename;
+  link.click();
+  URL.revokeObjectURL(url);
+  crudStatus.value = `已匯出 ${crudRows.value.length} 筆 ${activeCrudConfig.value.label} CSV。`;
+}
+
+function parseCsv(csv: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const char = csv[index];
+    const next = csv[index + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+
+  const [headers = [], ...records] = rows;
+  return records.map((values) =>
+    Object.fromEntries(headers.map((header, index) => [header.trim(), values[index] ?? ""]))
+  );
+}
+
+function normalizeCsvRow(config: CrudConfig, row: Record<string, string>) {
+  if (config.table === "commonaccount") {
+    const sites = Array.from({ length: 50 }, (_, index) => index + 1)
+      .map((index) => ({
+        site: row[`site${String(index).padStart(2, "0")}`] || "",
+        note: row[`note${String(index).padStart(2, "0")}`] || ""
+      }))
+      .filter((entry) => entry.site || entry.note);
+    return { name: row.name || "", sites, note: row.note || "" };
+  }
+
+  const record: Record<string, unknown> = {};
+  for (const field of config.fields) {
+    const raw = row[field.key] ?? "";
+    if (field.type === "number") record[field.key] = Number(raw || 0);
+    else if (field.type === "boolean") record[field.key] = ["true", "1", "yes", "y"].includes(raw.toLowerCase());
+    else if (field.type === "json") {
+      try {
+        record[field.key] = raw ? JSON.parse(raw) : [];
+      } catch {
+        record[field.key] = [];
+      }
+    } else if (field.type === "date") record[field.key] = raw ? raw.slice(0, 10) : null;
+    else record[field.key] = raw;
+  }
+
+  return record;
+}
+
+function normalizeExportRow(config: CrudConfig, row: Record<string, unknown>) {
+  const output: Record<string, unknown> = {};
+  for (const field of config.fields) {
+    const value = row[field.key];
+    output[field.key] = field.type === "json" ? JSON.stringify(value || []) : value ?? "";
+  }
+  return output;
+}
+
+function toCsv(rows: Array<Record<string, unknown>>) {
+  const headers = activeCrudConfig.value.fields.map((field) => field.key);
+  return [
+    headers.join(","),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(","))
+  ].join("\n");
+}
+
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
 </script>
 
 <template>
@@ -1147,7 +1587,78 @@ async function generateTables() {
             <label><input type="checkbox" :checked="dataSource === 'nhost'" disabled /> 使用 Nhost GraphQL 實際資料</label>
             <label><input type="checkbox" :checked="Boolean(loadedTables.length)" disabled /> 已匹配資料表：{{ loadedTables.join(", ") || "尚未匹配" }}</label>
             <label><input type="checkbox" :checked="dataSource === 'fallback'" disabled /> 本地備援資料</label>
-            <label><input type="checkbox" disabled /> 新增表單目前只做前端暫存，尚未寫回 Nhost mutation</label>
+            <label><input type="checkbox" checked disabled /> 可在「資料 CRUD / CSV」寫入 Nhost 實際資料</label>
+          </div>
+        </article>
+        <article class="panel wide">
+          <div class="section-heading">
+            <div>
+              <h3>資料 CRUD / CSV</h3>
+              <p class="section-note">選擇資料表後，可讀取、新增、更新、刪除，並支援 Appwrite CSV 匯入與 CSV 匯出。</p>
+            </div>
+            <div class="button-row">
+              <select v-model="activeCrudTable" class="crud-select" @change="loadCrudRows">
+                <option v-for="config in crudConfigs" :key="config.table" :value="config.table">{{ config.label }}</option>
+              </select>
+              <button type="button" :disabled="isCrudBusy" @click="loadCrudRows">讀取</button>
+              <button type="button" :disabled="isCrudBusy || !crudRows.length" @click="exportCrudCsv">匯出 CSV</button>
+              <button type="button" :disabled="isCrudBusy" @click="crudFileInput?.click()">匯入 CSV</button>
+              <input ref="crudFileInput" class="hidden-input" type="file" accept=".csv,text/csv" @change="importCrudCsv" />
+            </div>
+          </div>
+
+          <form class="crud-form" @submit.prevent="saveCrudRecord">
+            <label v-for="field in activeCrudConfig.fields" :key="field.key">
+              <span>{{ field.label }}</span>
+              <select v-if="field.type === 'boolean'" v-model="crudDraft[field.key]">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+              <textarea
+                v-else-if="field.type === 'json' || field.key === 'content' || field.key === 'note'"
+                v-model="crudDraft[field.key]"
+                :placeholder="crudPlaceholder(field)"
+              />
+              <input
+                v-else
+                v-model="crudDraft[field.key]"
+                :type="field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'"
+                :placeholder="field.label"
+              />
+            </label>
+            <div class="crud-actions">
+              <button type="submit" :disabled="isCrudBusy">{{ editingCrudId ? "更新" : "新增" }}</button>
+              <button type="button" :disabled="isCrudBusy" @click="resetCrudDraft">清空</button>
+            </div>
+          </form>
+
+          <p v-if="crudStatus" class="status-message">{{ crudStatus }}</p>
+
+          <div class="crud-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>操作</th>
+                  <th v-for="field in activeCrudConfig.fields" :key="field.key">{{ field.label }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in crudRows" :key="String(row.id)">
+                  <td>
+                    <div class="row-actions">
+                      <button type="button" :disabled="isCrudBusy" @click="editCrudRecord(row)">編輯</button>
+                      <button type="button" :disabled="isCrudBusy" @click="deleteCrudRecord(row)">刪除</button>
+                    </div>
+                  </td>
+                  <td v-for="field in activeCrudConfig.fields" :key="field.key">
+                    {{ field.type === "json" ? JSON.stringify(row[field.key] || []) : row[field.key] }}
+                  </td>
+                </tr>
+                <tr v-if="!crudRows.length">
+                  <td :colspan="activeCrudConfig.fields.length + 1">尚未讀取資料，或此表目前沒有資料。</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </article>
         <article class="panel wide">
