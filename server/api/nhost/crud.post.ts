@@ -31,7 +31,7 @@ const crudTables: Record<string, CrudTableConfig> = {
   music: { table: "music", fields: ["id", "name", "url", "note"] },
   podcast: { table: "podcast", fields: ["id", "name", "url", "note"] },
   routine: { table: "routine", fields: ["id", "name", "note", "lastdate1", "lastdate2", "lastdate3", "link", "photo"] },
-  subscription: { table: "subscription", fields: ["id", "name", "site", "price", "nextdate", "note", "account", "currency", "continue"] },
+  subscription: { table: "subscription", fields: ["id", "name", "site", "price", "nextdate", "note", "account", "currency", "active", "continue"] },
   video: { table: "video", fields: ["id", "name", "url", "note"] }
 };
 
@@ -189,13 +189,19 @@ function sanitizeRecord(tableConfig: CrudTableConfig, record: Record<string, unk
 
   for (const [key, value] of Object.entries(record)) {
     if (!allowed.has(key)) continue;
-    output[key] = normalizeValue(value);
+    output[key] = normalizeValue(value, key);
   }
 
   return output;
 }
 
-function normalizeValue(value: unknown) {
+function normalizeValue(value: unknown, key?: string) {
   if (value === "") return null;
+  // Convert date strings from YYYY/MM/DD to YYYY-MM-DD for date fields
+  if (typeof value === "string" && key && (key.includes("date") || key === "nextdate" || key === "todate" || key === "newDate" || key === "lastdate1" || key === "lastdate2" || key === "lastdate3")) {
+    if (value.includes("/")) {
+      return value.replace(/\//g, "-");
+    }
+  }
   return value;
 }

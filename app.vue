@@ -891,7 +891,7 @@ async function addSubscription() {
       name: quickForm.subscriptionName,
       site: "",
       price: Number(quickForm.subscriptionPrice || 0),
-      nextdate: quickForm.subscriptionDate,
+      nextdate: quickForm.subscriptionDate.replace(/\//g, "-"),
       note: "使用者新增",
       account: "",
       currency: "TWD",
@@ -948,7 +948,7 @@ async function addFood() {
   const record = {
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
-    todate: quickForm.foodDate,
+    todate: quickForm.foodDate.replace(/\//g, "-"),
     photo: "",
     price: 0,
     shop: "使用者新增"
@@ -1047,7 +1047,7 @@ async function addRoutine() {
   const record = {
     name: quickForm.routineName,
     note: quickForm.routineNote,
-    lastdate1: quickForm.routineDate,
+    lastdate1: quickForm.routineDate.replace(/\//g, "-"),
     lastdate2: "",
     lastdate3: "",
     link: "",
