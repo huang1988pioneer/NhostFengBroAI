@@ -102,8 +102,7 @@ const isSecretVisible = ref(false);
 const nhostSettings = reactive({
   graphqlUrl: "",
   adminSecret: "",
-  authorization: "",
-  rememberSecret: false
+  authorization: ""
 });
 const nhostSettingsStorageKey = "fengbro-nhost-settings";
 
@@ -251,8 +250,7 @@ function loadStoredNhostSettings() {
     const stored = JSON.parse(raw) as Partial<typeof nhostSettings>;
     nhostSettings.graphqlUrl = stored.graphqlUrl || "";
     nhostSettings.authorization = stored.authorization || "";
-    nhostSettings.rememberSecret = Boolean(stored.rememberSecret);
-    nhostSettings.adminSecret = stored.rememberSecret ? stored.adminSecret || "" : "";
+    nhostSettings.adminSecret = stored.adminSecret || "";
   } catch {
     localStorage.removeItem(nhostSettingsStorageKey);
   }
@@ -264,14 +262,11 @@ function saveNhostSettings() {
   const payload = {
     graphqlUrl: nhostSettings.graphqlUrl.trim(),
     authorization: nhostSettings.authorization.trim(),
-    rememberSecret: nhostSettings.rememberSecret,
-    adminSecret: nhostSettings.rememberSecret ? nhostSettings.adminSecret.trim() : ""
+    adminSecret: nhostSettings.adminSecret.trim()
   };
 
   localStorage.setItem(nhostSettingsStorageKey, JSON.stringify(payload));
-  settingsStatus.value = nhostSettings.rememberSecret
-    ? "已儲存 Nhost API 資訊到此瀏覽器。"
-    : "已儲存 URL/Token。Admin Secret 只保留在目前畫面。";
+  settingsStatus.value = "已儲存 Nhost API 資訊到此瀏覽器。";
 }
 
 function clearNhostSettings() {
@@ -282,7 +277,6 @@ function clearNhostSettings() {
   nhostSettings.graphqlUrl = "";
   nhostSettings.adminSecret = "";
   nhostSettings.authorization = "";
-  nhostSettings.rememberSecret = false;
   settingsStatus.value = "已清除瀏覽器中的 Nhost API 資訊。";
 }
 
@@ -750,10 +744,7 @@ async function generateTables() {
                 placeholder="Bearer eyJ..."
               />
             </label>
-            <label class="inline-check">
-              <input v-model="nhostSettings.rememberSecret" type="checkbox" />
-              <span>把 Admin Secret 一起儲存在此瀏覽器</span>
-            </label>
+            <p class="settings-hint">Admin Secret 會一律儲存在目前瀏覽器；按「清除」可移除本機儲存的 API 資訊。</p>
           </div>
           <p
             v-if="connectionTestStatus"

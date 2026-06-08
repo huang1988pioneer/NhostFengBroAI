@@ -714,17 +714,14 @@ td small {
   cursor: pointer;
 }
 
-.settings-form .inline-check {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.settings-hint {
+  margin: 0;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
   padding: 13px;
-}
-
-.settings-form .inline-check input {
-  width: auto;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 @media (max-width: 1180px) {
