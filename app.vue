@@ -44,6 +44,14 @@ import {
   readFileAsText
 } from "~/utils/csvUtils";
 import type { CommonAccount } from "~/data/fengbro";
+import {
+  upsertSubscriptions,
+  upsertFoods,
+  upsertArticles,
+  upsertCommonAccounts,
+  upsertBanks,
+  upsertRoutines
+} from "~/utils/nhostMutations";
 
 type MenuItem = {
   id: string;
@@ -420,7 +428,8 @@ async function doImport(
   event: Event,
   label: string,
   importFn: (text: string) => unknown[],
-  apply: (items: unknown[]) => void
+  apply: (items: unknown[]) => void,
+  upsertFn?: (conn: NhostConnection, items: unknown[]) => Promise<{ inserted: number; errors?: string[] }>
 ) {
   const input = event.target as HTMLInputElement;
   if (!input?.files?.length) return;
@@ -436,6 +445,23 @@ async function doImport(
     }
     apply(items);
     showCsvToast(`✓ 已匯入 ${items.length} 筆${label}資料（${file.name}）`);
+
+    // Write to Nhost if connected
+    if (upsertFn) {
+      const conn = getNhostConnection();
+      if (conn.graphqlUrl) {
+        try {
+          const result = await upsertFn(conn, items);
+          if (result.errors?.length) {
+            showCsvToast(`❗ 資料已更新畫面，但寫入 Nhost 失敗：${result.errors[0]}`, true);
+          } else {
+            showCsvToast(`✓ 已寫入 Nhost：${result.inserted} 筆${label}資料`);
+          }
+        } catch (e) {
+          showCsvToast(`❗ 畫面已更新，但寫入 Nhost 失敗：${e instanceof Error ? e.message : '未知錯誤'}`, true);
+        }
+      }
+    }
   } catch (err) {
     showCsvToast(`✗ 匯入失敗：${err instanceof Error ? err.message : "未知錯誤"}`, true);
   } finally {
@@ -444,12 +470,12 @@ async function doImport(
   }
 }
 
-const importSubCsv   = (e: Event) => doImport(e, "訂閱",    importSubscriptions,  (v) => { subscriptions.value  = v as Subscription[]; });
-const importFoodCsv  = (e: Event) => doImport(e, "食品",    importFoods,          (v) => { foods.value         = v as Food[]; });
-const importNoteCsv  = (e: Event) => doImport(e, "筆記",    importArticles,       (v) => { articles.value      = v as Article[]; });
-const importCommonCsv= (e: Event) => doImport(e, "常用帳號",  importCommonAccounts, (v) => { commonAccounts.value= v as CommonAccount[]; });
-const importBankCsv  = (e: Event) => doImport(e, "銀行",    importBanks,          (v) => { banks.value         = v as Bank[]; });
-const importRoutineCsv=(e: Event) => doImport(e, "例行事項",  importRoutines,       (v) => { routines.value      = v as Routine[]; });
+const importSubCsv   = (e: Event) => doImport(e, "訂閱",    importSubscriptions,  (v) => { subscriptions.value  = v as Subscription[]; },  upsertSubscriptions as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
+const importFoodCsv  = (e: Event) => doImport(e, "食品",    importFoods,          (v) => { foods.value         = v as Food[]; },          upsertFoods as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
+const importNoteCsv  = (e: Event) => doImport(e, "筆記",    importArticles,       (v) => { articles.value      = v as Article[]; },      upsertArticles as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
+const importCommonCsv= (e: Event) => doImport(e, "常用帳號",  importCommonAccounts, (v) => { commonAccounts.value= v as CommonAccount[]; }, upsertCommonAccounts as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
+const importBankCsv  = (e: Event) => doImport(e, "銀行",    importBanks,          (v) => { banks.value         = v as Bank[]; },          upsertBanks as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
+const importRoutineCsv=(e: Event) => doImport(e, "例行事項",  importRoutines,       (v) => { routines.value      = v as Routine[]; },    upsertRoutines as (conn: NhostConnection, items: unknown[]) => Promise<{inserted: number; errors?: string[]}>);
 
 async function copyTableSql() {
   tableGenerationStatus.value = "";
