@@ -95,6 +95,9 @@ const tableSql = createNhostTablesSql;
 const tableGenerationStatus = ref("");
 const isGeneratingTables = ref(false);
 const settingsStatus = ref("");
+const connectionTestStatus = ref("");
+const connectionTestOk = ref<boolean | null>(null);
+const isTestingConnection = ref(false);
 const isSecretVisible = ref(false);
 const nhostSettings = reactive({
   graphqlUrl: "",
@@ -286,6 +289,37 @@ function clearNhostSettings() {
 async function saveAndReloadNhostSettings() {
   saveNhostSettings();
   await loadNhostData();
+}
+
+async function testNhostConnection() {
+  connectionTestStatus.value = "正在測試 Nhost GraphQL 連線...";
+  connectionTestOk.value = null;
+  isTestingConnection.value = true;
+
+  try {
+    const result = await $fetch<{
+      ok: boolean;
+      error?: string;
+      hint?: string;
+      queryType: string;
+      rootFields: number;
+      sampleFields: string[];
+    }>("/api/nhost/test-connection", {
+      method: "POST",
+      body: getNhostConnection()
+    });
+
+    connectionTestOk.value = result.ok;
+    connectionTestStatus.value = result.ok
+      ? `連線成功：${result.queryType} 可讀取，找到 ${result.rootFields} 個 root fields${result.sampleFields.length ? `（${result.sampleFields.join(", ")}）` : ""}。`
+      : `連線失敗：${result.error || "未確認成功"}${result.hint ? `。${result.hint}` : ""}`;
+  } catch (error) {
+    connectionTestOk.value = false;
+    connectionTestStatus.value =
+      error instanceof Error ? `連線失敗：${error.message}` : "連線失敗：Nhost 測試 API 沒有回傳可辨識結果。";
+  } finally {
+    isTestingConnection.value = false;
+  }
 }
 
 function daysUntil(date: string) {
@@ -678,6 +712,9 @@ async function generateTables() {
               <p class="section-note">輸入 Nhost 專案的 GraphQL URL 與權限資訊，儲存在目前瀏覽器。</p>
             </div>
             <div class="button-row">
+              <button type="button" :disabled="isTestingConnection" @click="testNhostConnection">
+                {{ isTestingConnection ? "測試中" : "測試連線" }}
+              </button>
               <button type="button" @click="saveAndReloadNhostSettings">儲存並連線</button>
               <button type="button" @click="clearNhostSettings">清除</button>
             </div>
@@ -688,7 +725,7 @@ async function generateTables() {
               <input
                 v-model="nhostSettings.graphqlUrl"
                 autocomplete="off"
-                placeholder="https://your-subdomain.graphql.your-region.nhost.run/v1"
+                placeholder="https://ullnfgbmboomsrmvscge.graphql.ap-southeast-1.nhost.run/v1"
               />
             </label>
             <label>
@@ -718,6 +755,12 @@ async function generateTables() {
               <span>把 Admin Secret 一起儲存在此瀏覽器</span>
             </label>
           </div>
+          <p
+            v-if="connectionTestStatus"
+            :class="['status-message', connectionTestOk === false ? 'error' : connectionTestOk === true ? 'success' : '']"
+          >
+            {{ connectionTestStatus }}
+          </p>
           <p v-if="settingsStatus" class="status-message">{{ settingsStatus }}</p>
         </article>
         <article class="panel wide">

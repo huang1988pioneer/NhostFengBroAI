@@ -42,6 +42,9 @@ export default defineEventHandler(async (event) => {
   return await $fetch(graphqlUrl, {
     method: "POST",
     headers,
-    body
+    body: {
+      query: body.query,
+      variables: body.variables
+    }
   });
 });

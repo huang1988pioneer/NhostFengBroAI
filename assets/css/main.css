@@ -657,6 +657,16 @@ td small {
   padding: 12px 14px;
 }
 
+.status-message.success {
+  background: rgba(81, 116, 91, 0.14);
+  color: #315a3b;
+}
+
+.status-message.error {
+  background: rgba(151, 54, 43, 0.12);
+  color: #97362b;
+}
+
 .sql-preview {
   width: 100%;
   min-height: 360px;
