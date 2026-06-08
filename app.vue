@@ -43,6 +43,7 @@ import {
   exportRoutines, importRoutines,
   readFileAsText
 } from "~/utils/csvUtils";
+import type { CommonAccount } from "~/data/fengbro";
 
 type MenuItem = {
   id: string;
@@ -415,33 +416,40 @@ function showCsvToast(message: string, isError = false) {
   csvToastTimer = setTimeout(() => { csvToast.value = null; }, 3200);
 }
 
-async function handleCsvImport(
+async function doImport(
   event: Event,
+  label: string,
   importFn: (text: string) => unknown[],
-  targetRef: Ref<unknown[]>,
-  label: string
+  apply: (items: unknown[]) => void
 ) {
   const input = event.target as HTMLInputElement;
   if (!input?.files?.length) return;
   csvImporting.value = label;
   showCsvToast(`正在匯入${label} CSV...`);
+  const file = input.files[0];
   try {
-    const file = input.files[0];
     const text = await readFileAsText(file);
     const items = importFn(text);
     if (!items.length) {
       showCsvToast(`CSV 中無有效資料列`, true);
       return;
     }
-    targetRef.value = items as never[];
+    apply(items);
     showCsvToast(`✓ 已匯入 ${items.length} 筆${label}資料（${file.name}）`);
   } catch (err) {
     showCsvToast(`✗ 匯入失敗：${err instanceof Error ? err.message : "未知錯誤"}`, true);
   } finally {
     csvImporting.value = "";
-    input.value = ""; // reset for re-import
+    input.value = "";
   }
 }
+
+const importSubCsv   = (e: Event) => doImport(e, "訂閱",    importSubscriptions,  (v) => { subscriptions.value  = v as Subscription[]; });
+const importFoodCsv  = (e: Event) => doImport(e, "食品",    importFoods,          (v) => { foods.value         = v as Food[]; });
+const importNoteCsv  = (e: Event) => doImport(e, "筆記",    importArticles,       (v) => { articles.value      = v as Article[]; });
+const importCommonCsv= (e: Event) => doImport(e, "常用帳號",  importCommonAccounts, (v) => { commonAccounts.value= v as CommonAccount[]; });
+const importBankCsv  = (e: Event) => doImport(e, "銀行",    importBanks,          (v) => { banks.value         = v as Bank[]; });
+const importRoutineCsv=(e: Event) => doImport(e, "例行事項",  importRoutines,       (v) => { routines.value      = v as Routine[]; });
 
 async function copyTableSql() {
   tableGenerationStatus.value = "";
@@ -616,7 +624,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportSubscriptions(subscriptions)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '訂閱' }">
                 <Upload :size="15" />{{ csvImporting === '訂閱' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importSubscriptions, subscriptions as any, '訂閱')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importSubCsv" />
               </label>
             </div>
           </div>
@@ -649,7 +657,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportFoods(foods)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '食品' }">
                 <Upload :size="15" />{{ csvImporting === '食品' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importFoods, foods as any, '食品')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importFoodCsv" />
               </label>
             </div>
           </div>
@@ -678,7 +686,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportArticles(articles)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '筆記' }">
                 <Upload :size="15" />{{ csvImporting === '筆記' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importArticles, articles as any, '筆記')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importNoteCsv" />
               </label>
             </div>
           </div>
@@ -703,7 +711,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportCommonAccounts(commonAccounts)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '常用帳號' }">
                 <Upload :size="15" />{{ csvImporting === '常用帳號' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importCommonAccounts, commonAccounts as any, '常用帳號')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importCommonCsv" />
               </label>
             </div>
           </div>
@@ -732,7 +740,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportBanks(banks)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '銀行' }">
                 <Upload :size="15" />{{ csvImporting === '銀行' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importBanks, banks as any, '銀行')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importBankCsv" />
               </label>
             </div>
           </div>
@@ -757,7 +765,7 @@ async function generateTables() {
               <button class="csv-btn export" type="button" @click="exportRoutines(routines)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '例行事項' }">
                 <Upload :size="15" />{{ csvImporting === '例行事項' ? '匯入中...' : '匯入 CSV' }}
-                <input class="csv-hidden-input" type="file" accept=".csv" @change="handleCsvImport($event, importRoutines, routines as any, '例行事項')" />
+                <input class="csv-hidden-input" type="file" accept=".csv" @change="importRoutineCsv" />
               </label>
             </div>
           </div>
