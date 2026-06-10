@@ -682,8 +682,6 @@ async function updateWithNhost(table: string, id: string, record: Record<string,
     return false;
   }
 }
-  }
-}
 
 async function deleteFromNhostByName(table: string, name: string, removeLocal: () => void, field = "name") {
   const conn = getNhostConnection();
