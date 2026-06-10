@@ -179,6 +179,13 @@ const csvToast = ref<{ message: string; isError: boolean } | null>(null);
 let csvToastTimer: ReturnType<typeof setTimeout> | null = null;
 const csvImporting = ref("");
 
+// Delete confirmation dialog state
+const showDeleteConfirm = ref(false);
+const deleteTarget = ref<{
+  name: string;
+  action: () => Promise<void>;
+} | null>(null);
+
 const quickForm = reactive<QuickForm>({
   subscriptionName: "",
   subscriptionDate: "",
@@ -692,6 +699,25 @@ async function deleteFromNhostByName(table: string, name: string, removeLocal: (
   }
 }
 
+// Confirmation dialog helpers
+function requestDelete(name: string, action: () => Promise<void>) {
+  deleteTarget.value = { name, action };
+  showDeleteConfirm.value = true;
+}
+
+async function confirmDelete() {
+  if (deleteTarget.value?.action) {
+    await deleteTarget.value.action();
+  }
+  showDeleteConfirm.value = false;
+  deleteTarget.value = null;
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false;
+  deleteTarget.value = null;
+}
+
 const removeSubscription = (name: string) => {
   subscriptions.value = subscriptions.value.filter((item) => item.name !== name);
 };
@@ -727,6 +753,49 @@ function activeMediaKey(): keyof typeof mediaSeed.value {
 
 async function deleteMediaItem(name: string) {
   await deleteFromNhostByName(activeMediaTable(), name, () => removeMediaItem(activeMediaKey(), name));
+}
+
+// Wrapper functions for delete with confirmation
+function confirmDeleteSubscription(name: string) {
+  requestDelete(name, async () => {
+    await deleteFromNhostByName('subscription', name, () => removeSubscription(name));
+  });
+}
+
+function confirmDeleteFood(name: string) {
+  requestDelete(name, async () => {
+    await deleteFromNhostByName('food', name, () => removeFood(name));
+  });
+}
+
+function confirmDeleteArticle(title: string) {
+  requestDelete(title, async () => {
+    await deleteFromNhostByName('article', title, () => removeArticle(title), 'title');
+  });
+}
+
+function confirmDeleteCommonAccount(name: string) {
+  requestDelete(name, async () => {
+    await deleteFromNhostByName('commonaccount', name, () => removeCommonAccount(name));
+  });
+}
+
+function confirmDeleteBank(name: string) {
+  requestDelete(name, async () => {
+    await deleteFromNhostByName('bank', name, () => removeBank(name));
+  });
+}
+
+function confirmDeleteRoutine(name: string) {
+  requestDelete(name, async () => {
+    await deleteFromNhostByName('routine', name, () => removeRoutine(name));
+  });
+}
+
+function confirmDeleteMediaItem(name: string) {
+  requestDelete(name, async () => {
+    await deleteMediaItem(name);
+  });
 }
 
 function startEditCommon(row: CommonAccount) {
@@ -1250,18 +1319,19 @@ async function saveCrudRecord() {
   }
 }
 
-async function deleteCrudRecord(row: Record<string, unknown>) {
+function confirmDeleteCrudRecord(row: Record<string, unknown>) {
   const id = String(row.id || "");
   const name = String(row.name || row.title || id);
   if (!id) {
     crudStatus.value = "刪除失敗：這筆資料沒有 id。";
     return;
   }
-  if (!window.confirm(`確定要刪除「${name}」？刪除後會寫入資料庫，無法只靠瀏覽器暫存還原。`)) {
-    crudStatus.value = "已取消刪除。";
-    return;
-  }
+  requestDelete(name, async () => {
+    await deleteCrudRecord(id, name);
+  });
+}
 
+async function deleteCrudRecord(id: string, name: string) {
   isCrudBusy.value = true;
   const previousRows = [...crudRows.value];
   crudRows.value = crudRows.value.filter((item) => String(item.id) !== id);
@@ -1633,7 +1703,7 @@ function csvCell(value: unknown) {
           </div>
           <DataTable v-else :rows="filteredSubscriptions" :columns="['名稱', '價格', '幣別', '下次日期', '帳號', '狀態']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('subscription', row.name, () => removeSubscription(row.name))">刪除</button></div></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteSubscription(row.name)">刪除</button></div></td>
               <td>{{ money(row.price, row.currency) }}</td>
               <td>{{ row.currency }}</td>
               <td>{{ row.nextdate }}<small>{{ daysUntil(row.nextdate) }}</small></td>
@@ -1670,7 +1740,7 @@ function csvCell(value: unknown) {
           <div>
             <strong>{{ item.name }}</strong>
             <span>數量 {{ item.amount }} / 到期 {{ item.todate }} / {{ daysUntil(item.todate) }}</span>
-            <div class="row-btn-group"><button class="text-action" type="button" @click="startEditFood(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('food', item.name, () => removeFood(item.name))">刪除</button></div>
+            <div class="row-btn-group"><button class="text-action" type="button" @click="startEditFood(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteFood(item.name)">刪除</button></div>
           </div>
         </article>
       </section>
@@ -1698,7 +1768,7 @@ function csvCell(value: unknown) {
           <small>{{ item.category || "未分類" }} / {{ item.newDate }}</small>
           <h3>{{ item.title }}</h3>
           <p>{{ item.content }}</p>
-          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditNote(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('article', item.title, () => removeArticle(item.title), 'title')">刪除</button></div>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditNote(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteArticle(item.title)">刪除</button></div>
         </article>
       </section>
 
@@ -1720,7 +1790,7 @@ function csvCell(value: unknown) {
           <div class="chip-row">
             <span v-for="entry in account.sites" :key="`${account.name}-${entry.site}`" class="chip">{{ entry.site }}<small v-if="entry.note">{{ entry.note }}</small></span>
           </div>
-          <button class="text-action danger" type="button" @click="deleteFromNhostByName('commonaccount', account.name, () => removeCommonAccount(account.name))">刪除</button>
+          <button class="text-action danger" type="button" @click="confirmDeleteCommonAccount(account.name)">刪除</button>
         </article>
       </section>
 
@@ -1738,7 +1808,7 @@ function csvCell(value: unknown) {
           <component :is="activeMediaIcon" :size="28" />
           <strong>{{ item }}</strong>
           <span>資料來源：{{ statusLabel }}</span>
-          <button class="text-action danger" type="button" @click="deleteMediaItem(item)">刪除</button>
+          <button class="text-action danger" type="button" @click="confirmDeleteMediaItem(item)">刪除</button>
         </article>
       </section>
 
@@ -1764,7 +1834,7 @@ function csvCell(value: unknown) {
           </form>
           <DataTable :rows="filteredBanks" :columns="['名稱', '餘額', '提款', '轉帳', '卡片', '帳號']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><div class="row-btn-group"><button class="text-action" type="button" @click="startEditBank(row)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('bank', row.name, () => removeBank(row.name))">刪除</button></div></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><div class="row-btn-group"><button class="text-action" type="button" @click="startEditBank(row)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteBank(row.name)">刪除</button></div></td>
               <td>{{ money(row.deposit) }}</td>
               <td>{{ row.withdrawals }}</td>
               <td>{{ row.transfer }}</td>
@@ -1802,7 +1872,7 @@ function csvCell(value: unknown) {
           </div>
           <p>{{ item.note || "沒有備註" }}</p>
           <a v-if="item.link" :href="item.link" target="_blank">開啟連結</a>
-          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditRoutine(item)">編輯</button><button class="text-action danger" type="button" @click="deleteFromNhostByName('routine', item.name, () => removeRoutine(item.name))">刪除</button></div>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditRoutine(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteRoutine(item.name)">刪除</button></div>
         </article>
       </section>
 
@@ -1956,7 +2026,7 @@ function csvCell(value: unknown) {
                   <td>
                     <div class="row-actions">
                       <button type="button" :disabled="isCrudBusy" @click="editCrudRecord(row)">編輯</button>
-                      <button type="button" :disabled="isCrudBusy" @click="deleteCrudRecord(row)">刪除</button>
+                      <button type="button" :disabled="isCrudBusy" @click="confirmDeleteCrudRecord(row)">刪除</button>
                     </div>
                   </td>
                   <td v-for="field in activeCrudConfig.fields" :key="field.key">
@@ -2013,6 +2083,13 @@ function csvCell(value: unknown) {
           {{ csvToast.message }}
         </div>
       </Teleport>
+
+      <ConfirmDialog
+        v-model="showDeleteConfirm"
+        :name="deleteTarget?.name || ''"
+        message="確定要刪除此項目？刪除後將無法復原。"
+        @confirm="confirmDelete"
+      />
     </main>
   </div>
 </template>
