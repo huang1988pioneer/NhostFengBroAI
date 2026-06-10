@@ -27,80 +27,91 @@ export default defineEventHandler(async (event) => {
 
   if (!graphqlUrl || typeof graphqlUrl !== "string") {
     throw createError({
-      statusCode: 500,
-      statusMessage: "Missing Nhost GraphQL URL"
+      statusCode: 400,
+      statusMessage: "Missing Nhost GraphQL URL. Please configure it in settings."
     });
   }
 
   if (!adminSecret) {
     throw createError({
-      statusCode: 500,
-      statusMessage: "Missing Nhost admin secret"
+      statusCode: 400,
+      statusMessage: "Missing Nhost admin secret. Required for creating tables and tracking to GraphQL."
     });
   }
 
-  const sqlEndpoint = deriveHasuraQueryEndpoint(graphqlUrl);
-  const metadataEndpoint = deriveHasuraMetadataEndpoint(graphqlUrl);
-  const response = await $fetch<HasuraRunSqlResponse>(sqlEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-hasura-admin-secret": String(adminSecret)
-    },
-    body: {
-      type: "run_sql",
-      args: {
-        source: "default",
-        sql: createNhostTablesSql,
-        cascade: false,
-        read_only: false
+  try {
+    const sqlEndpoint = deriveHasuraQueryEndpoint(graphqlUrl);
+    const metadataEndpoint = deriveHasuraMetadataEndpoint(graphqlUrl);
+    
+    // Step 1: Create tables
+    const response = await $fetch<HasuraRunSqlResponse>(sqlEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-hasura-admin-secret": String(adminSecret)
+      },
+      body: {
+        type: "run_sql",
+        args: {
+          source: "default",
+          sql: createNhostTablesSql,
+          cascade: false,
+          read_only: false
+        }
       }
-    }
-  });
-
-  if (response.error) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: response.error,
-      data: response
     });
-  }
 
-  const trackResult = await trackTables(metadataEndpoint, String(adminSecret));
-  const seedResponse = await $fetch<HasuraRunSqlResponse>(sqlEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-hasura-admin-secret": String(adminSecret)
-    },
-    body: {
-      type: "run_sql",
-      args: {
-        source: "default",
-        sql: seedNhostTablesSql,
-        cascade: false,
-        read_only: false
+    if (response.error) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Hasura SQL error: ${response.error}`,
+        data: response
+      });
+    }
+
+    // Step 2: Track tables
+    const trackResult = await trackTables(metadataEndpoint, String(adminSecret));
+    
+    // Step 3: Seed data
+    const seedResponse = await $fetch<HasuraRunSqlResponse>(sqlEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-hasura-admin-secret": String(adminSecret)
+      },
+      body: {
+        type: "run_sql",
+        args: {
+          source: "default",
+          sql: seedNhostTablesSql,
+          cascade: false,
+          read_only: false
+        }
       }
-    }
-  });
+    });
 
-  if (seedResponse.error) {
+    if (seedResponse.error) {
+      // Seed error is non-fatal, just log it
+      console.warn("Seed data insert warning:", seedResponse.error);
+    }
+
+    return {
+      ok: true,
+      endpoint: sqlEndpoint,
+      metadataEndpoint,
+      tables: nhostTableSchemas.length,
+      tracked: trackResult.tracked,
+      trackSkipped: trackResult.skipped,
+      resultType: response.result_type || "CommandOk"
+    };
+  } catch (error: any) {
+    // Better error handling
+    const message = error?.message || error?.data?.message || String(error);
     throw createError({
-      statusCode: 500,
-      statusMessage: seedResponse.error,
-      data: seedResponse
+      statusCode: error?.statusCode || 500,
+      statusMessage: `Create tables failed: ${message}. Check admin secret and GraphQL URL.`
     });
   }
-
-  return {
-    ok: true,
-    endpoint: sqlEndpoint,
-    metadataEndpoint,
-    tables: nhostTableSchemas.length,
-    tracked: trackResult.tracked,
-    trackSkipped: trackResult.skipped,
-    resultType: response.result_type || "CommandOk"
-  };
 });
 
 function deriveHasuraQueryEndpoint(graphqlUrl: string) {
