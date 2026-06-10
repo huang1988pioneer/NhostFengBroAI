@@ -665,7 +665,7 @@ async function createWithNhost(table: string, object: Record<string, unknown>): 
 async function updateWithNhost(table: string, id: string, record: Record<string, unknown>): Promise<boolean> {
   if (!canWriteToDatabase()) return false;
   if (!isValidRecordId(id)) {
-    showCsvToast("⚠️ 此筆資料沒有有效 id，無法更新到資料庫。請重新載入資料。", true);
+    showCsvToast(`⚠️ 此筆資料沒有有效 id（id: "${id}"），無法更新到資料庫。請重新載入資料。`, true);
     return false;
   }
   const conn = getNhostConnection();
@@ -673,11 +673,15 @@ async function updateWithNhost(table: string, id: string, record: Record<string,
   try {
     const result = await updateRecord(conn, actualTable, id, record);
     if (result.ok) { showCsvToast(`✓ ${result.message}`); return true; }
-    showCsvToast(`⚠️ ${result.message}`, true);
+    showCsvToast(`⚠️ ${actualTable} 更新失敗：${result.message}`, true);
     return false;
   } catch (error) {
-    showCsvToast(`更新 Nhost 失敗：${error instanceof Error ? error.message : "未知錯誤"}`, true);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    showCsvToast(`⚠️ ${actualTable} 更新失敗：${errorMsg}。請確認資料 id 與寫入權限`, true);
+    console.error(`Update failed for ${actualTable}:`, { id, record, error });
     return false;
+  }
+}
   }
 }
 
@@ -701,11 +705,14 @@ async function deleteFromNhostByName(table: string, name: string, removeLocal: (
 
 // Confirmation dialog helpers
 function requestDelete(name: string, action: () => Promise<void>) {
+  console.log('requestDelete called:', { name, hasAction: !!action });
   deleteTarget.value = { name, action };
   showDeleteConfirm.value = true;
+  console.log('Dialog state:', { showDeleteConfirm: showDeleteConfirm.value, deleteTarget: deleteTarget.value });
 }
 
 async function confirmDelete() {
+  console.log('confirmDelete called');
   if (deleteTarget.value?.action) {
     await deleteTarget.value.action();
   }
@@ -714,6 +721,7 @@ async function confirmDelete() {
 }
 
 function cancelDelete() {
+  console.log('cancelDelete called');
   showDeleteConfirm.value = false;
   deleteTarget.value = null;
 }
@@ -960,14 +968,14 @@ async function addSubscription() {
       name: quickForm.subscriptionName,
       site: "",
       price: Number(quickForm.subscriptionPrice || 0),
-      nextdate: quickForm.subscriptionDate ? quickForm.subscriptionDate.replace(/\//g, "-") : null,
+      nextdate: quickForm.subscriptionDate || null,
       note: "使用者新增",
       account: "",
       currency: "TWD",
-      active: true,
       continue: true
     };
     if (editingSubId.value) {
+      console.log('Updating subscription:', { id: editingSubId.value, record });
       const idx = subscriptions.value.findIndex((s) => s.id === editingSubId.value);
       const previous = idx >= 0 ? { ...subscriptions.value[idx] } : null;
       if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], ...record };
