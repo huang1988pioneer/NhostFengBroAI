@@ -30,14 +30,14 @@ export async function upsertSubscriptions(conn: NhostConnection, rows: Subscript
     note: r.note ?? "",
     account: r.account ?? "",
     currency: r.currency ?? "TWD",
-    continue: r.continue ?? false
+    active: r.continue ?? false
   }));
 
   const query = `
     mutation UpsertSubscriptions($objects: [subscription_insert_input!]!) {
       insert_subscription(
         objects: $objects,
-        on_conflict: { constraint: subscription_pkey, update_columns: [name, site, price, nextdate, note, account, currency, continue] }
+        on_conflict: { constraint: subscription_pkey, update_columns: [name, site, price, nextdate, note, account, currency, active] }
       ) { affected_rows }
     }`;
 

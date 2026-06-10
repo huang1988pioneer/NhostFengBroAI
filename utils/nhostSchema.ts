@@ -136,7 +136,7 @@ ${baseColumns},
   note text default '',
   account text default '',
   currency text default 'TWD',
-  continue boolean default true
+  active boolean default true
 );`
   },
   {
@@ -151,7 +151,41 @@ ${baseColumns},
   }
 ];
 
+// Generate ALTER TABLE ADD COLUMN IF NOT EXISTS for each business column
+// This handles the case where the table already exists with only base columns
+function generateAlterStatements(): string {
+  const alterLines: string[] = [];
+  for (const schema of nhostTableSchemas) {
+    // Extract column definitions from the SQL (skip base columns and table wrapper)
+    const sqlBody = schema.sql
+      .replace(/create table if not exists public\.\w+ \(/i, "")
+      .replace(/\);[\s]*$/, "")
+      .replace(/--.*$/gm, "");
+
+    // Split by lines and filter out base columns
+    const lines = sqlBody.split("\n").map((l) => l.trim()).filter(Boolean);
+    const baseColNames = new Set(["id", "created_at", "updated_at"]);
+
+    for (const line of lines) {
+      // Skip empty lines and base columns
+      const match = line.match(/^"?(\w+)"?\s+(.+?)(?:,?\s*)$/);
+      if (!match || !match[1] || !match[2]) continue;
+      const colName = match[1];
+      const colDef = match[2].replace(/,\s*$/, "");
+      if (baseColNames.has(colName)) continue;
+
+      // Quote column name if it contains special chars or reserved words
+      const quotedCol = colName === "newDate" ? `"${colName}"` : colName;
+      alterLines.push(`alter table public.${schema.name} add column if not exists ${quotedCol} ${colDef};`);
+    }
+  }
+  return alterLines.join("\n");
+}
+
 export const createNhostTablesSql = `${nhostTableSchemas.map((schema) => schema.sql).join("\n\n")}
+
+-- Add missing columns to existing tables
+${generateAlterStatements()}
 
 ${nhostTableSchemas
   .map((schema) => `comment on table public.${schema.name} is 'FengBro ${schema.name} imported from Appwrite naming';`)
