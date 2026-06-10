@@ -703,12 +703,6 @@ async function deleteFromNhostByName(table: string, name: string, removeLocal: (
 
 // Confirmation dialog helpers
 async function requestDelete(name: string, action: () => Promise<void>) {
-  if (import.meta.client) {
-    const ok = window.confirm(`確定要刪除「${name}」嗎？刪除後將無法復原。`);
-    if (!ok) return;
-    await action();
-    return;
-  }
   deleteTarget.value = { name, action };
   showDeleteConfirm.value = true;
 }
