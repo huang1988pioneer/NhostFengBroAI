@@ -6,6 +6,8 @@ type GraphqlBody = {
   authorization?: string;
 };
 
+import { executeGraphqlWithAutoTrack } from "../../utils/hasuraAutoTrack";
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const body = await readBody<GraphqlBody>(event);
@@ -39,12 +41,11 @@ export default defineEventHandler(async (event) => {
     headers["x-hasura-admin-secret"] = String(adminSecret);
   }
 
-  return await $fetch(graphqlUrl, {
-    method: "POST",
+  return await executeGraphqlWithAutoTrack(
+    graphqlUrl,
     headers,
-    body: {
-      query: body.query,
-      variables: body.variables
-    }
-  });
+    body.query,
+    body.variables,
+    adminSecret ? String(adminSecret) : undefined
+  );
 });

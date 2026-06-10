@@ -1,3 +1,5 @@
+import { executeGraphqlWithAutoTrack } from "../../utils/hasuraAutoTrack";
+
 type CrudAction = "list" | "insert" | "update" | "delete" | "bulk-insert";
 
 type CrudBody = {
@@ -105,7 +107,7 @@ export default defineEventHandler(async (event) => {
         ${fieldSelection.join("\n")}
       }
     }`;
-    const response = await graphql<Record<string, Array<Record<string, unknown>>>>(graphqlUrl, headers, query);
+    const response = await graphql<Record<string, Array<Record<string, unknown>>>>(graphqlUrl, headers, query, undefined, typeof adminSecret === "string" ? adminSecret : undefined);
     return { ok: true, rows: response[dbTableName] || [] };
   }
 
@@ -116,7 +118,7 @@ export default defineEventHandler(async (event) => {
         id
       }
     }`;
-    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id });
+    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id }, typeof adminSecret === "string" ? adminSecret : undefined);
     const row = response[`delete_${dbTableName}_by_pk`];
     return { ok: Boolean(row?.id), row };
   }
@@ -128,7 +130,7 @@ export default defineEventHandler(async (event) => {
         id
       }
     }`;
-    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { object });
+    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { object }, typeof adminSecret === "string" ? adminSecret : undefined);
     const row = response[`insert_${dbTableName}_one`];
     return { ok: Boolean(row?.id), row };
   }
@@ -141,7 +143,7 @@ export default defineEventHandler(async (event) => {
         id
       }
     }`;
-    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id, set });
+    const response = await graphql<Record<string, { id: string } | null>>(graphqlUrl, headers, query, { id: body.id, set }, typeof adminSecret === "string" ? adminSecret : undefined);
     const row = response[`update_${dbTableName}_by_pk`];
     return { ok: Boolean(row?.id), row };
   }
@@ -153,7 +155,7 @@ export default defineEventHandler(async (event) => {
         affected_rows
       }
     }`;
-    const response = await graphql<Record<string, { affected_rows: number }>>(graphqlUrl, headers, query, { objects });
+    const response = await graphql<Record<string, { affected_rows: number }>>(graphqlUrl, headers, query, { objects }, typeof adminSecret === "string" ? adminSecret : undefined);
     return { ok: true, affectedRows: response[`insert_${dbTableName}`]?.affected_rows || 0 };
   }
 });
@@ -162,15 +164,12 @@ async function graphql<T>(
   graphqlUrl: string,
   headers: Record<string, string>,
   query: string,
-  variables?: Record<string, unknown>
+  variables?: Record<string, unknown>,
+  adminSecret?: string
 ): Promise<T> {
   let response: GraphqlResponse<T>;
   try {
-    response = await $fetch<GraphqlResponse<T>>(graphqlUrl, {
-      method: "POST",
-      headers,
-      body: { query, variables }
-    });
+    response = await executeGraphqlWithAutoTrack<T>(graphqlUrl, headers, query, variables, adminSecret);
   } catch (error: unknown) {
     throw createError({
       statusCode: 502,
