@@ -702,15 +702,18 @@ async function deleteFromNhostByName(table: string, name: string, removeLocal: (
 }
 
 // Confirmation dialog helpers
-function requestDelete(name: string, action: () => Promise<void>) {
-  console.log('requestDelete called:', { name, hasAction: !!action });
+async function requestDelete(name: string, action: () => Promise<void>) {
+  if (import.meta.client) {
+    const ok = window.confirm(`確定要刪除「${name}」嗎？刪除後將無法復原。`);
+    if (!ok) return;
+    await action();
+    return;
+  }
   deleteTarget.value = { name, action };
   showDeleteConfirm.value = true;
-  console.log('Dialog state:', { showDeleteConfirm: showDeleteConfirm.value, deleteTarget: deleteTarget.value });
 }
 
 async function confirmDelete() {
-  console.log('confirmDelete called');
   if (deleteTarget.value?.action) {
     await deleteTarget.value.action();
   }
@@ -719,7 +722,6 @@ async function confirmDelete() {
 }
 
 function cancelDelete() {
-  console.log('cancelDelete called');
   showDeleteConfirm.value = false;
   deleteTarget.value = null;
 }
@@ -2093,7 +2095,6 @@ function csvCell(value: unknown) {
       <ConfirmDialog
         v-model="showDeleteConfirm"
         :name="deleteTarget?.name || ''"
-        message="確定要刪除此項目？刪除後將無法復原。"
         @confirm="confirmDelete"
       />
     </main>
