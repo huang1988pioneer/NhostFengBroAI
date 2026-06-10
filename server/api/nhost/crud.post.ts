@@ -82,7 +82,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Use the actual DB table name from the request (may be plural/alias)
-  const dbTableName = rawTable;
+  const dbTableName = tableConfig.table;
 
   if (!graphqlUrl || typeof graphqlUrl !== "string") {
     throw createError({ statusCode: 400, statusMessage: "Missing Nhost GraphQL URL" });
@@ -99,9 +99,10 @@ export default defineEventHandler(async (event) => {
   if (adminSecret) headers["x-hasura-admin-secret"] = String(adminSecret);
 
   if (action === "list") {
+    const fieldSelection = tableConfig.fields.map((field) => field === "continue" ? "continue: active" : field);
     const query = `query FengbroCrudList {
       ${dbTableName} {
-        ${tableConfig.fields.join("\n")}
+        ${fieldSelection.join("\n")}
       }
     }`;
     const response = await graphql<Record<string, Array<Record<string, unknown>>>>(graphqlUrl, headers, query);
@@ -163,11 +164,19 @@ async function graphql<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
-  const response = await $fetch<GraphqlResponse<T>>(graphqlUrl, {
-    method: "POST",
-    headers,
-    body: { query, variables }
-  });
+  let response: GraphqlResponse<T>;
+  try {
+    response = await $fetch<GraphqlResponse<T>>(graphqlUrl, {
+      method: "POST",
+      headers,
+      body: { query, variables }
+    });
+  } catch (error: unknown) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: formatFetchError(error)
+    });
+  }
 
   if (response.errors?.length) {
     throw createError({
@@ -189,10 +198,25 @@ function sanitizeRecord(tableConfig: CrudTableConfig, record: Record<string, unk
 
   for (const [key, value] of Object.entries(record)) {
     if (!allowed.has(key)) continue;
-    output[key] = normalizeValue(value, key);
+    const dbKey = key === "continue" ? "active" : key;
+    output[dbKey] = normalizeValue(value, key);
   }
 
   return output;
+}
+
+function formatFetchError(error: unknown) {
+  if (error && typeof error === "object") {
+    const fetchError = error as {
+      data?: { statusMessage?: string; message?: string; errors?: Array<{ message?: string }> };
+      statusMessage?: string;
+      message?: string;
+    };
+    const graphqlErrors = fetchError.data?.errors?.map((item) => item.message).filter(Boolean).join("; ");
+    return graphqlErrors || fetchError.data?.statusMessage || fetchError.data?.message || fetchError.statusMessage || fetchError.message || "Nhost GraphQL request failed";
+  }
+
+  return String(error || "Nhost GraphQL request failed");
 }
 
 function normalizeValue(value: unknown, key?: string) {

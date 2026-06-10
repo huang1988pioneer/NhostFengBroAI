@@ -148,6 +148,7 @@ export async function createTablesDirect(
 
 function deriveHasuraQueryEndpoint(graphqlUrl: string) {
   const url = new URL(graphqlUrl);
+  url.hostname = url.hostname.replace(".graphql.", ".hasura.");
   url.pathname = url.pathname
     .replace(/\/v1\/graphql\/?$/, "/v2/query")
     .replace(/\/v1\/?$/, "/v2/query");

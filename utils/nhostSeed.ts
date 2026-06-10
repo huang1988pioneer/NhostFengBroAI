@@ -11,7 +11,7 @@ const scalarMediaTables = [
 export const seedNhostTablesSql = [
   insertIfEmpty(
     "subscription",
-    ["name", "site", "price", "nextdate", "note", "account", "currency", "continue"],
+    ["name", "site", "price", "nextdate", "note", "account", "currency", "active"],
     fallbackDataset.subscriptions.map((item) => [
       item.name,
       item.site,
