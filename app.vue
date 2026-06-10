@@ -1163,10 +1163,6 @@ async function generateTables() {
   tableGenerationStatus.value = "正在建立資料表、Track 到 GraphQL，並匯入初始資料...";
 
   try {
-    const directResult = await createTablesDirect(getNhostConnection(), tableSql);
-    tableGenerationStatus.value = directResult.ok ? `已送出建表 SQL：${directResult.resultType}。` : "建表沒有確認成功。";
-    await loadNhostData();
-    return;
     const result = await $fetch<{ ok: boolean; tables: number; tracked?: number; trackSkipped?: number }>("/api/nhost/create-tables", {
       method: "POST",
       body: getNhostConnection()
