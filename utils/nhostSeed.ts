@@ -69,7 +69,7 @@ export const seedNhostTablesSql = [
     insertIfEmpty(
       table,
       ["name", "url", "note"],
-      rows.map((name) => [name, "", ""])
+      rows.map((item) => [item.name, item.url, item.note])
     )
   )
 ].join("\n\n");

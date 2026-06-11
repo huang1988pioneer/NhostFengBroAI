@@ -6,6 +6,7 @@ import {
   type FengbroDataset,
   type FinanceWatch,
   type Food,
+  type MediaItem,
   type MediaLibrary,
   type Routine,
   type Subscription
@@ -299,7 +300,7 @@ export async function fetchNhostDataset(
   const { rootFields, typeFields } = indexSchema(schema);
   const selections: string[] = [];
   const activePlans: Array<TablePlan<string> & { table: string; selectedColumns: Record<string, string> }> = [];
-  const activeMediaPlans: Array<{ alias: string; key: keyof MediaLibrary; table: string }> = [];
+  const activeMediaPlans: Array<{ alias: string; key: keyof MediaLibrary; table: string; selectedColumns: Record<string, string> }> = [];
   const resolvedTables: Record<string, string> = {};
 
   for (const plan of tablePlans) {
@@ -332,11 +333,15 @@ export async function fetchNhostDataset(
 
     const nameField = ["name", "title", "filename"].find((candidate) => fields.has(candidate));
     if (!nameField) continue;
+    const urlField = ["url", "file_url", "storage_url", "src", "href"].find((candidate) => fields.has(candidate));
+    const noteField = ["note", "description", "remark"].find((candidate) => fields.has(candidate));
+    const idField = fields.has("id") ? "id" : undefined;
 
     const alias = `media_${mediaPlan.key}`;
-    activeMediaPlans.push({ alias, key: mediaPlan.key, table: mediaPlan.table });
+    const selectedColumns = { id: idField || "", name: nameField, url: urlField || "", note: noteField || "" };
+    activeMediaPlans.push({ alias, key: mediaPlan.key, table: mediaPlan.table, selectedColumns });
     resolvedTables[mediaPlan.key] = mediaPlan.table;
-    selections.push(`${alias}: ${mediaPlan.table} { name: ${nameField} }`);
+    selections.push(`${alias}: ${mediaPlan.table} { ${buildMediaSelection(selectedColumns)} }`);
   }
 
   if (!selections.length) {
@@ -366,7 +371,7 @@ export async function fetchNhostDataset(
   for (const mediaPlan of activeMediaPlans) {
     const rows = Array.isArray(data[mediaPlan.alias]) ? (data[mediaPlan.alias] as Array<Record<string, unknown>>) : [];
 
-    dataset.mediaSeed[mediaPlan.key] = rows.map((row) => text(row.name)).filter(Boolean);
+    dataset.mediaSeed[mediaPlan.key] = rows.map(normalizeMediaItem).filter((item) => item.name);
     if (!loadedKeys.includes("mediaSeed")) {
       loadedKeys.push("mediaSeed");
     }
@@ -472,12 +477,31 @@ function normalizeMedia(rows: Array<Record<string, unknown>>): MediaLibrary {
     if (!name) continue;
 
     const type = text(row.type).toLowerCase();
-    if (["image", "images", "photo", "photos"].includes(type)) media.images.push(name);
-    else if (["video", "videos"].includes(type)) media.videos.push(name);
-    else if (["music", "song", "songs", "audio"].includes(type)) media.music.push(name);
-    else if (["document", "documents", "doc", "docs"].includes(type)) media.documents.push(name);
-    else if (["podcast", "podcasts"].includes(type)) media.podcasts.push(name);
+    const item = normalizeMediaItem(row);
+    if (["image", "images", "photo", "photos"].includes(type)) media.images.push(item);
+    else if (["video", "videos"].includes(type)) media.videos.push(item);
+    else if (["music", "song", "songs", "audio"].includes(type)) media.music.push(item);
+    else if (["document", "documents", "doc", "docs"].includes(type)) media.documents.push(item);
+    else if (["podcast", "podcasts"].includes(type)) media.podcasts.push(item);
   }
 
   return media;
+}
+
+function buildMediaSelection(columns: Record<string, string>) {
+  return [
+    columns.id ? `id: ${columns.id}` : "",
+    `name: ${columns.name}`,
+    columns.url ? `url: ${columns.url}` : "",
+    columns.note ? `note: ${columns.note}` : ""
+  ].filter(Boolean).join(" ");
+}
+
+function normalizeMediaItem(row: Record<string, unknown>): MediaItem {
+  return {
+    id: text(row.id),
+    name: text(row.name),
+    url: text(row.url),
+    note: text(row.note)
+  };
 }

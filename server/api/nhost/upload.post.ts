@@ -1,5 +1,10 @@
 type UploadResponse = {
   id?: string;
+  fileMetadata?: {
+    id?: string;
+    name?: string;
+    size?: number;
+  };
   name?: string;
   size?: number;
 };
@@ -38,7 +43,9 @@ export default defineEventHandler(async (event) => {
   const authorization = fields.authorization || getHeader(event, "authorization");
   const uploadEndpoint = deriveStorageFilesEndpoint(graphqlUrl);
   const form = new FormData();
-  form.append("file", new Blob([filePart.data], { type: filePart.type }), filePart.filename);
+  const file = new File([filePart.data], filePart.filename, { type: filePart.type });
+  form.append("file[]", file);
+  form.append("file", file);
   form.append("bucket-id", fields.bucketId || "default");
 
   const headers: Record<string, string> = {};
@@ -46,22 +53,24 @@ export default defineEventHandler(async (event) => {
   if (adminSecret) headers["x-hasura-admin-secret"] = String(adminSecret);
 
   try {
-    const uploaded = await $fetch<UploadResponse>(uploadEndpoint, {
+    const response = await $fetch<UploadResponse | UploadResponse[]>(uploadEndpoint, {
       method: "POST",
       headers,
       body: form
     });
-    const fileId = uploaded.id;
+    const uploaded = Array.isArray(response) ? response[0] : response;
+    const fileId = uploaded?.id || uploaded?.fileMetadata?.id;
+    const fileName = uploaded?.name || uploaded?.fileMetadata?.name || filePart.filename;
     return {
       ok: true,
       id: fileId,
-      name: uploaded.name || filePart.filename,
-      size: uploaded.size ?? filePart.data.byteLength,
+      name: fileName,
+      size: uploaded?.size ?? uploaded?.fileMetadata?.size ?? filePart.data.byteLength,
       url: fileId ? `${uploadEndpoint}/${fileId}` : uploadEndpoint
     };
   } catch (error: unknown) {
     throw createError({
-      statusCode: 502,
+      statusCode: 500,
       statusMessage: formatUploadError(error)
     });
   }
@@ -78,11 +87,12 @@ function deriveStorageFilesEndpoint(graphqlUrl: string) {
 function formatUploadError(error: unknown) {
   if (error && typeof error === "object") {
     const uploadError = error as {
-      data?: { statusMessage?: string; message?: string; error?: string };
+      data?: { statusMessage?: string; message?: string; error?: string; errors?: Array<{ message?: string }> };
       statusMessage?: string;
       message?: string;
     };
-    return uploadError.data?.statusMessage || uploadError.data?.message || uploadError.data?.error || uploadError.statusMessage || uploadError.message || "Nhost Storage upload failed";
+    const messages = uploadError.data?.errors?.map((item) => item.message).filter(Boolean).join("; ");
+    return messages || uploadError.data?.statusMessage || uploadError.data?.message || uploadError.data?.error || uploadError.statusMessage || uploadError.message || "Nhost Storage upload failed";
   }
 
   return String(error || "Nhost Storage upload failed");

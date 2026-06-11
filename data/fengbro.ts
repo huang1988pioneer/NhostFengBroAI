@@ -1,4 +1,4 @@
-export type Subscription = {
+﻿export type Subscription = {
   id?: string;
   name: string;
   site: string;
@@ -57,12 +57,19 @@ export type Routine = {
   photo: string;
 };
 
+export type MediaItem = {
+  id?: string;
+  name: string;
+  url: string;
+  note: string;
+};
+
 export type MediaLibrary = {
-  images: string[];
-  videos: string[];
-  music: string[];
-  documents: string[];
-  podcasts: string[];
+  images: MediaItem[];
+  videos: MediaItem[];
+  music: MediaItem[];
+  documents: MediaItem[];
+  podcasts: MediaItem[];
 };
 
 export type FinanceWatch = {
@@ -102,7 +109,7 @@ export const fallbackDataset: FengbroDataset = {
       site: "https://chatgpt.com/#pricing",
       price: 690,
       nextdate: "2026-07-04",
-      note: "本地備援資料：請設定 Nhost 後改用實際資料",
+      note: "備援資料，請設定 Nhost 後載入實際資料。",
       account: "fengbro",
       currency: "TWD",
       continue: true
@@ -112,7 +119,7 @@ export const fallbackDataset: FengbroDataset = {
       site: "https://drive.proton.me",
       price: 5,
       nextdate: "2026-06-15",
-      note: "本地備援資料",
+      note: "備援資料",
       account: "huang1988pioneer",
       currency: "USD",
       continue: false
@@ -125,13 +132,13 @@ export const fallbackDataset: FengbroDataset = {
       todate: "2026-08-04",
       photo: "",
       price: 0,
-      shop: "本地備援資料"
+      shop: "備援資料"
     }
   ],
   articles: [
     {
       title: "Nhost 實際資料尚未載入",
-      content: "請在 .env 設定 NUXT_PUBLIC_NHOST_GRAPHQL_URL，必要時加入 NUXT_NHOST_ADMIN_SECRET。",
+      content: "請到設定頁輸入 Nhost GraphQL URL 與 Admin Secret。",
       category: "系統",
       newDate: "2026-06-07"
     }
@@ -140,27 +147,27 @@ export const fallbackDataset: FengbroDataset = {
     {
       name: "goldshoot0720@gmail.com",
       sites: [
-        { site: "Nhost", note: "本地備援資料" },
+        { site: "Nhost", note: "備援資料" },
         { site: "GitHub", note: "" }
       ]
     }
   ],
   banks: [
     {
-      name: "銀行帳戶範例",
+      name: "銀行資料範例",
       deposit: 1000,
       site: "",
       withdrawals: 0,
       transfer: 0,
       activity: "",
       card: "",
-      account: "本地備援資料"
+      account: "備援資料"
     }
   ],
   routines: [
     {
       name: "例行事項範例",
-      note: "本地備援資料",
+      note: "備援資料",
       lastdate1: "2026-05-18",
       lastdate2: "",
       lastdate3: "",
@@ -169,14 +176,14 @@ export const fallbackDataset: FengbroDataset = {
     }
   ],
   mediaSeed: {
-    images: ["圖片資料夾"],
-    videos: ["影片資料夾"],
-    music: ["音樂資料夾"],
-    documents: ["文件資料夾"],
-    podcasts: ["Podcast 資料夾"]
+    images: [{ name: "圖片資料夾", url: "", note: "" }],
+    videos: [{ name: "影片資料夾", url: "", note: "" }],
+    music: [{ name: "音樂資料夾", url: "", note: "" }],
+    documents: [{ name: "文件資料夾", url: "", note: "" }],
+    podcasts: [{ name: "Podcast 資料夾", url: "", note: "" }]
   },
   financeWatch: [
-    { name: "市場追蹤", symbol: "INFO", value: "等待 Nhost 資料", note: "本地備援資料" }
+    { name: "金融追蹤", symbol: "INFO", value: "請載入 Nhost 資料", note: "備援資料" }
   ]
 };
 
