@@ -69,6 +69,7 @@ type QuickForm = {
   foodName: string;
   foodAmount: number;
   foodDate: string;
+  foodPhoto: string;
   noteTitle: string;
   noteContent: string;
   commonName: string;
@@ -84,6 +85,7 @@ type QuickForm = {
   routineName: string;
   routineDate: string;
   routineNote: string;
+  routinePhoto: string;
 };
 
 type CrudField = {
@@ -193,6 +195,7 @@ const quickForm = reactive<QuickForm>({
   foodName: "",
   foodAmount: 1,
   foodDate: "",
+  foodPhoto: "",
   noteTitle: "",
   noteContent: "",
   commonName: "",
@@ -207,7 +210,8 @@ const quickForm = reactive<QuickForm>({
   bankCard: "",
   routineName: "",
   routineDate: "",
-  routineNote: ""
+  routineNote: "",
+  routinePhoto: ""
 });
 
 const crudConfigs: CrudConfig[] = [
@@ -348,6 +352,12 @@ const editingCrudId = ref("");
 const crudStatus = ref("");
 const isCrudBusy = ref(false);
 const crudFileInput = ref<HTMLInputElement | null>(null);
+const isMediaUploading = ref(false);
+const mediaUploadInput = ref<HTMLInputElement | null>(null);
+const isFoodPhotoUploading = ref(false);
+const foodPhotoInput = ref<HTMLInputElement | null>(null);
+const isRoutinePhotoUploading = ref(false);
+const routinePhotoInput = ref<HTMLInputElement | null>(null);
 
 // ── Module-level edit state ───────────────────────────────────────────────────
 const editingSubId = ref("");
@@ -366,7 +376,8 @@ const totalUsdSubscriptions = computed(() => subscriptions.value.filter((item) =
 const totalBankDeposit = computed(() => banks.value.reduce((sum, item) => sum + item.deposit, 0));
 const foodUnits = computed(() => foods.value.reduce((sum, item) => sum + item.amount, 0));
 const latestArticles = computed(() => [...articles.value].sort((a, b) => b.newDate.localeCompare(a.newDate)).slice(0, 5));
-const filteredSubscriptions = computed(() => filterRows(subscriptions.value, query.value));
+const sortedSubscriptions = computed(() => sortSubscriptionsByNextDate(subscriptions.value));
+const filteredSubscriptions = computed(() => filterRows(sortedSubscriptions.value, query.value));
 const filteredFoods = computed(() => filterRows(foods.value, query.value));
 const filteredArticles = computed(() => filterRows(articles.value, query.value));
 const filteredRoutines = computed(() => filterRows(routines.value, query.value));
@@ -389,6 +400,19 @@ const activeMediaIcon = computed<Component>(() => {
     podcast: FileAudio
   };
   return icons[currentModule.value] ?? FolderOpen;
+});
+const activeMediaAccept = computed(() => {
+  if (currentModule.value === "images") return "image/*";
+  if (currentModule.value === "videos") return "video/*";
+  if (currentModule.value === "music" || currentModule.value === "podcast") return "audio/*";
+  return "*/*";
+});
+const activeMediaUploadLabel = computed(() => {
+  if (currentModule.value === "images") return "上傳圖片";
+  if (currentModule.value === "videos") return "上傳影片";
+  if (currentModule.value === "music") return "上傳音樂";
+  if (currentModule.value === "podcast") return "上傳音訊";
+  return "上傳檔案";
 });
 const statusLabel = computed(() => {
   if (dataSource.value === "nhost") return "Nhost 實際資料";
@@ -616,6 +640,20 @@ function daysUntil(date: string) {
   if (diff < 0) return `已過 ${Math.abs(diff)} 天`;
   if (diff === 0) return "今天";
   return `${diff} 天`;
+}
+
+function sortSubscriptionsByNextDate(rows: Subscription[]) {
+  return [...rows].sort((a, b) => {
+    const dateDiff = subscriptionDateSortValue(a.nextdate) - subscriptionDateSortValue(b.nextdate);
+    if (dateDiff !== 0) return dateDiff;
+    return a.name.localeCompare(b.name, "zh-Hant");
+  });
+}
+
+function subscriptionDateSortValue(date: string) {
+  if (!date) return Number.MAX_SAFE_INTEGER;
+  const time = new Date(`${date}T00:00:00+08:00`).getTime();
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
 }
 
 function money(amount: number, currency = "TWD") {
@@ -877,6 +915,81 @@ async function addMediaItem() {
   quickForm.mediaNote = "";
 }
 
+async function uploadMediaFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  isMediaUploading.value = true;
+  try {
+    const result = await uploadFileToNhostStorage(file);
+
+    if (!quickForm.mediaName) quickForm.mediaName = stripFileExtension(result.name || file.name);
+    quickForm.mediaUrl = result.url;
+    showCsvToast(`已上傳 ${result.name || file.name}。`);
+  } catch (error) {
+    showCsvToast(`上傳失敗：${error instanceof Error ? error.message : "Nhost Storage 無法上傳"}`, true);
+  } finally {
+    isMediaUploading.value = false;
+    input.value = "";
+  }
+}
+
+function stripFileExtension(filename: string) {
+  return filename.replace(/\.[^.]+$/, "");
+}
+
+async function uploadFoodPhoto(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  isFoodPhotoUploading.value = true;
+  try {
+    const result = await uploadFileToNhostStorage(file);
+    quickForm.foodPhoto = result.url;
+    showCsvToast(`已上傳食品圖片 ${result.name || file.name}。`);
+  } catch (error) {
+    showCsvToast(`食品圖片上傳失敗：${error instanceof Error ? error.message : "Nhost Storage 無法上傳"}`, true);
+  } finally {
+    isFoodPhotoUploading.value = false;
+    input.value = "";
+  }
+}
+
+async function uploadRoutinePhoto(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  isRoutinePhotoUploading.value = true;
+  try {
+    const result = await uploadFileToNhostStorage(file);
+    quickForm.routinePhoto = result.url;
+    showCsvToast(`已上傳例行圖片 ${result.name || file.name}。`);
+  } catch (error) {
+    showCsvToast(`例行圖片上傳失敗：${error instanceof Error ? error.message : "Nhost Storage 無法上傳"}`, true);
+  } finally {
+    isRoutinePhotoUploading.value = false;
+    input.value = "";
+  }
+}
+
+async function uploadFileToNhostStorage(file: File) {
+  const form = new FormData();
+  const conn = getNhostConnection();
+  form.append("file", file);
+  form.append("bucketId", "default");
+  if (conn.graphqlUrl) form.append("graphqlUrl", conn.graphqlUrl);
+  if (conn.adminSecret) form.append("adminSecret", conn.adminSecret);
+  if (conn.authorization) form.append("authorization", conn.authorization);
+
+  return await $fetch<{ ok: boolean; name: string; url: string }>("/api/nhost/upload", {
+    method: "POST",
+    body: form
+  });
+}
+
 function startEditBank(row: Bank) {
   if (!isValidRecordId(row.id)) {
     showCsvToast("⚠️ 此筆資料沒有有效 id，無法編輯。請重新載入資料。", true);
@@ -1004,12 +1117,14 @@ function startEditFood(row: Food) {
   quickForm.foodName = row.name;
   quickForm.foodAmount = row.amount;
   quickForm.foodDate = row.todate;
+  quickForm.foodPhoto = row.photo;
 }
 function cancelEditFood() {
   editingFoodId.value = "";
   quickForm.foodName = "";
   quickForm.foodDate = "";
   quickForm.foodAmount = 1;
+  quickForm.foodPhoto = "";
 }
 async function addFood() {
   if (!quickForm.foodName) {
@@ -1020,7 +1135,7 @@ async function addFood() {
     name: quickForm.foodName,
     amount: Number(quickForm.foodAmount || 1),
     todate: quickForm.foodDate ? quickForm.foodDate.replace(/\//g, "-") : null,
-    photo: "",
+    photo: quickForm.foodPhoto,
     price: 0,
     shop: "使用者新增"
   };
@@ -1045,6 +1160,7 @@ async function addFood() {
   quickForm.foodName = "";
   quickForm.foodDate = "";
   quickForm.foodAmount = 1;
+  quickForm.foodPhoto = "";
 }
 
 function startEditNote(row: Article) {
@@ -1103,12 +1219,14 @@ function startEditRoutine(row: Routine) {
   quickForm.routineName = row.name;
   quickForm.routineDate = row.lastdate1;
   quickForm.routineNote = row.note;
+  quickForm.routinePhoto = row.photo;
 }
 function cancelEditRoutine() {
   editingRoutineId.value = "";
   quickForm.routineName = "";
   quickForm.routineDate = "";
   quickForm.routineNote = "";
+  quickForm.routinePhoto = "";
 }
 async function addRoutine() {
   if (!quickForm.routineName) {
@@ -1122,7 +1240,7 @@ async function addRoutine() {
     lastdate2: "",
     lastdate3: "",
     link: "",
-    photo: ""
+    photo: quickForm.routinePhoto
   };
   if (editingRoutineId.value) {
     const idx = routines.value.findIndex((r) => r.id === editingRoutineId.value);
@@ -1145,6 +1263,7 @@ async function addRoutine() {
   quickForm.routineName = "";
   quickForm.routineDate = "";
   quickForm.routineNote = "";
+  quickForm.routinePhoto = "";
 }
 
 function showCsvToast(message: string, isError = false) {
@@ -1644,7 +1763,7 @@ function csvCell(value: unknown) {
             <button type="button" @click="navigate('subscription')">查看訂閱</button>
           </div>
           <div class="timeline">
-            <article v-for="item in subscriptions.slice(0, 8)" :key="`${item.name}-${item.nextdate}`">
+            <article v-for="item in sortedSubscriptions.slice(0, 8)" :key="`${item.name}-${item.nextdate}`">
               <span>{{ daysUntil(item.nextdate) }}</span>
               <strong>{{ item.name }}</strong>
               <small>{{ item.nextdate }} / {{ money(item.price, item.currency) }}</small>
@@ -1732,6 +1851,11 @@ function csvCell(value: unknown) {
             <input v-model="quickForm.foodName" placeholder="品名" :class="{ editing: editingFoodId }" />
             <input v-model.number="quickForm.foodAmount" min="1" type="number" placeholder="數量" />
             <input v-model="quickForm.foodDate" type="date" />
+            <input v-model="quickForm.foodPhoto" placeholder="圖片 URL" />
+            <button type="button" class="secondary-btn" :disabled="isFoodPhotoUploading" @click="foodPhotoInput?.click()">
+              <Upload :size="15" />{{ isFoodPhotoUploading ? "上傳中..." : "上傳圖片" }}
+            </button>
+            <input ref="foodPhotoInput" class="hidden-input" type="file" accept="image/*" @change="uploadFoodPhoto" />
             <button type="submit">{{ editingFoodId ? '更新食品' : '新增' }}</button>
             <button v-if="editingFoodId" type="button" class="cancel-btn" @click="cancelEditFood">取消</button>
           </form>
@@ -1803,6 +1927,10 @@ function csvCell(value: unknown) {
             <input v-model="quickForm.mediaName" placeholder="名稱" />
             <input v-model="quickForm.mediaUrl" placeholder="連結 / Storage URL" />
             <input v-model="quickForm.mediaNote" placeholder="備註" />
+            <button type="button" class="secondary-btn" :disabled="isMediaUploading" @click="mediaUploadInput?.click()">
+              <Upload :size="15" />{{ isMediaUploading ? "上傳中..." : activeMediaUploadLabel }}
+            </button>
+            <input ref="mediaUploadInput" class="hidden-input" type="file" :accept="activeMediaAccept" @change="uploadMediaFile" />
             <button type="submit">新增</button>
           </form>
         </section>
@@ -1863,6 +1991,11 @@ function csvCell(value: unknown) {
             <input v-model="quickForm.routineName" placeholder="名稱" :class="{ editing: editingRoutineId }" />
             <input v-model="quickForm.routineDate" type="date" />
             <input v-model="quickForm.routineNote" placeholder="備註" />
+            <input v-model="quickForm.routinePhoto" placeholder="圖片 URL" />
+            <button type="button" class="secondary-btn" :disabled="isRoutinePhotoUploading" @click="routinePhotoInput?.click()">
+              <Upload :size="15" />{{ isRoutinePhotoUploading ? "上傳中..." : "上傳圖片" }}
+            </button>
+            <input ref="routinePhotoInput" class="hidden-input" type="file" accept="image/*" @change="uploadRoutinePhoto" />
             <button type="submit">{{ editingRoutineId ? '更新例行' : '新增' }}</button>
             <button v-if="editingRoutineId" type="button" class="cancel-btn" @click="cancelEditRoutine">取消</button>
           </form>

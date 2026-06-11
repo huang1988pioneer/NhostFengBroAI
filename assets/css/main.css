@@ -393,6 +393,14 @@ a {
   cursor: pointer;
 }
 
+.quick-form button.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #466d52;
+}
+
 .section-heading button:disabled,
 .quick-form button:disabled,
 .tabs button:disabled {
