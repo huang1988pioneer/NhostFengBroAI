@@ -52,7 +52,7 @@ import {
   upsertBanks,
   upsertRoutines
 } from "~/utils/nhostMutations";
-import { createTablesDirect, deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
+import { deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
 
 type MenuItem = {
   id: string;

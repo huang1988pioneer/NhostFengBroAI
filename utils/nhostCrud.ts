@@ -5,12 +5,6 @@ type GraphqlResult<T> = {
   errors?: Array<{ message: string }>;
 };
 
-type HasuraRunSqlResponse = {
-  result_type?: string;
-  error?: string;
-  code?: string;
-};
-
 export type CrudResult = {
   ok: boolean;
   affected: number;
@@ -124,36 +118,4 @@ export async function directGraphql<T>(
   }
   if (!result.data) throw new Error("Nhost GraphQL 沒有回傳 data。");
   return result.data;
-}
-
-export async function createTablesDirect(
-  conn: NhostConnection,
-  sql: string
-): Promise<{ ok: boolean; resultType: string }> {
-  if (!conn.graphqlUrl) throw new Error("請先在設定頁輸入 Nhost GraphQL URL。");
-  if (!conn.adminSecret) throw new Error("請先在設定頁輸入 Hasura Admin Secret。");
-
-  const response = await $fetch<HasuraRunSqlResponse>(deriveHasuraQueryEndpoint(conn.graphqlUrl), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-hasura-admin-secret": conn.adminSecret
-    },
-    body: { type: "run_sql", args: { source: "default", sql, cascade: false, read_only: false } }
-  });
-
-  if (response.error) throw new Error(response.error);
-  return { ok: true, resultType: response.result_type || "CommandOk" };
-}
-
-function deriveHasuraQueryEndpoint(graphqlUrl: string) {
-  const url = new URL(graphqlUrl);
-  url.hostname = url.hostname.replace(".graphql.", ".hasura.");
-  url.pathname = url.pathname
-    .replace(/\/v1\/graphql\/?$/, "/v2/query")
-    .replace(/\/v1\/?$/, "/v2/query");
-  if (!url.pathname.endsWith("/v2/query")) {
-    url.pathname = `${url.pathname.replace(/\/$/, "")}/v2/query`;
-  }
-  return url.toString();
 }
