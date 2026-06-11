@@ -1,3 +1,6 @@
+https://nhost-feng-bro-ai.vercel.app/
+https://nhostfengbroai.netlify.app/
+
 # NhostFengBroAI
 
 Nuxt 版鋒兄個人資料工作台。此版本優先讀取 Nhost GraphQL 實際資料，只有在 Nhost 未設定、連線失敗，或 schema 找不到相符資料表時，才會顯示本地備援資料。
