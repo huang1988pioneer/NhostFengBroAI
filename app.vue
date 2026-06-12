@@ -1104,7 +1104,16 @@ type NhostStorageUploadResponse = {
     name?: string;
     size?: number;
   };
-  // 有時直接在 ProcessedFiles 中
+  // Nhost v2 格式：processedFiles（小寫 p）
+  processedFiles?: Array<{
+    id?: string;
+    name?: string;
+    size?: number;
+    bucketId?: string;
+    mimeType?: string;
+    etag?: string;
+  }>;
+  // 舊版格式：ProcessedFiles（大寫 P）
   ProcessedFiles?: Array<{
     id?: string;
     name?: string;
@@ -1186,8 +1195,11 @@ function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | N
   // 處理陣列回應
   if (Array.isArray(response)) {
     uploaded = response[0];
+  } else if (response.processedFiles && Array.isArray(response.processedFiles)) {
+    // Nhost v2 格式：processedFiles（小寫 p）
+    uploaded = response.processedFiles[0];
   } else if (response.ProcessedFiles && Array.isArray(response.ProcessedFiles)) {
-    // 有些版本的 Nhost 會將檔案放在 ProcessedFiles 陣列中
+    // 舊版格式：ProcessedFiles（大寫 P）
     uploaded = response.ProcessedFiles[0];
   } else {
     uploaded = response;
@@ -1216,7 +1228,8 @@ function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | N
 
   console.log("解析結果:", { 
     isArray: Array.isArray(response),
-    hasProcessedFiles: !!(response as any).ProcessedFiles,
+    hasProcessedFiles: !!(response as any).processedFiles,
+    hasProcessedFilesCapital: !!(response as any).ProcessedFiles,
     uploaded,
     fileId, 
     fileName,
