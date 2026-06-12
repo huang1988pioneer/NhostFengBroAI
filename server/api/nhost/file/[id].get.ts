@@ -14,8 +14,8 @@ export default defineEventHandler(async (event) => {
   const fileUrls = buildStorageFileCandidates(graphqlUrl, id);
   const headers: Record<string, string> = {};
   const range = getHeader(event, "range");
-  const adminSecret = config.nhostAdminSecret;
-  const authorization = getHeader(event, "authorization");
+  const adminSecret = typeof query.adminSecret === "string" ? query.adminSecret : config.nhostAdminSecret;
+  const authorization = typeof query.authorization === "string" ? query.authorization : getHeader(event, "authorization");
 
   if (range) headers.Range = range;
   if (authorization) headers.Authorization = authorization;

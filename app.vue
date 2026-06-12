@@ -114,6 +114,50 @@ type OptimisticCrudRow = Record<string, unknown> & {
   isOptimistic?: boolean;
 };
 
+type PriceCompareResult = {
+  sourceUrl: string;
+  keyword: string;
+  productTitle: string;
+  currentPrice: number | null;
+  historicalHigh: number | null;
+  historicalLow: number | null;
+  biggoUrl: string;
+  series: Array<{ label: string; value: number }>;
+  notice?: string;
+};
+
+type PhoneCompareResult = {
+  keyword: string;
+  productName: string;
+  stores: Array<{ source: string; productName: string; productUrl: string; error?: string }>;
+  comparison: Array<{
+    label: string;
+    displayName: string;
+    sources: Array<{ source: string; priceLabel: string; numericPrice: number | null; url: string }>;
+  }>;
+};
+
+type TubeResult = {
+  fetchedAt: string;
+  channels: Array<{ id: string; label: string; url: string; error?: string; videos: TubeVideo[] }>;
+  recentVideos: Array<TubeVideo & { channelLabel: string }>;
+};
+
+type TubeVideo = {
+  id: string;
+  title: string;
+  url: string;
+  published: string;
+  updated: string;
+  thumbnail: string;
+};
+
+type FinanceToolResult = {
+  fetchedAt: string;
+  source: string;
+  items: Array<{ id: string; name: string; symbol: string; group: string; url: string; lastLabel: string; changeLabel: string; status: string; note: string }>;
+};
+
 const menuItems: MenuItem[] = [
   { id: "home", label: "首頁", icon: Home },
   { id: "dashboard", label: "總覽", icon: BarChart3 },
@@ -371,6 +415,20 @@ const editingRoutineId = ref("");
 const editingCommonId = ref("");
 const submitting = ref(false);
 const mediaPlaybackErrors = ref<Record<string, string>>({});
+const priceCompareInput = ref("");
+const priceCompareResult = ref<PriceCompareResult | null>(null);
+const priceCompareStatus = ref("");
+const isPriceCompareLoading = ref(false);
+const phoneCompareInput = ref("iPhone 16");
+const phoneCompareResult = ref<PhoneCompareResult | null>(null);
+const phoneCompareStatus = ref("");
+const isPhoneCompareLoading = ref(false);
+const tubeResult = ref<TubeResult | null>(null);
+const tubeStatus = ref("");
+const isTubeLoading = ref(false);
+const financeToolResult = ref<FinanceToolResult | null>(null);
+const financeToolStatus = ref("");
+const isFinanceToolLoading = ref(false);
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
 const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
@@ -554,6 +612,99 @@ function filterRows<T>(rows: T[], keyword: string): T[] {
   const normalized = keyword.trim().toLowerCase();
   if (!normalized) return rows;
   return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalized));
+}
+
+async function runPriceCompare() {
+  if (!priceCompareInput.value.trim()) {
+    priceCompareStatus.value = "請輸入商品網址或關鍵字。";
+    return;
+  }
+
+  isPriceCompareLoading.value = true;
+  priceCompareStatus.value = "正在查詢 BigGo 價格...";
+  try {
+    priceCompareResult.value = await $fetch<PriceCompareResult>("/api/feng-tools/biggo", {
+      method: "POST",
+      body: { url: priceCompareInput.value.trim() }
+    });
+    priceCompareStatus.value = priceCompareResult.value.notice || "價格比較完成。";
+  } catch (error) {
+    priceCompareStatus.value = `價格比較失敗：${formatToolError(error)}`;
+  } finally {
+    isPriceCompareLoading.value = false;
+  }
+}
+
+async function runPhoneCompare() {
+  if (!phoneCompareInput.value.trim()) {
+    phoneCompareStatus.value = "請輸入手機型號。";
+    return;
+  }
+
+  isPhoneCompareLoading.value = true;
+  phoneCompareStatus.value = "正在查詢手機價格...";
+  try {
+    phoneCompareResult.value = await $fetch<PhoneCompareResult>("/api/feng-tools/landtop", {
+      method: "POST",
+      body: { keyword: phoneCompareInput.value.trim() }
+    });
+    phoneCompareStatus.value = phoneCompareResult.value.comparison.length ? "手機比價完成。" : "目前無法自動解析價格，請開啟來源網站查看。";
+  } catch (error) {
+    phoneCompareStatus.value = `手機比價失敗：${formatToolError(error)}`;
+  } finally {
+    isPhoneCompareLoading.value = false;
+  }
+}
+
+async function runTubeLookup() {
+  isTubeLoading.value = true;
+  tubeStatus.value = "正在讀取 YouTube 頻道...";
+  try {
+    tubeResult.value = await $fetch<TubeResult>("/api/feng-tools/youtube");
+    tubeStatus.value = `已載入 ${tubeResult.value.recentVideos.length} 部近期影片。`;
+  } catch (error) {
+    tubeStatus.value = `FengBro Tube 載入失敗：${formatToolError(error)}`;
+  } finally {
+    isTubeLoading.value = false;
+  }
+}
+
+async function runFinanceLookup() {
+  isFinanceToolLoading.value = true;
+  financeToolStatus.value = "正在整理金融觀察清單...";
+  try {
+    financeToolResult.value = await $fetch<FinanceToolResult>("/api/feng-tools/finance");
+    financeToolStatus.value = `已載入 ${financeToolResult.value.items.length} 個金融來源。`;
+  } catch (error) {
+    financeToolStatus.value = `金融資料載入失敗：${formatToolError(error)}`;
+  } finally {
+    isFinanceToolLoading.value = false;
+  }
+}
+
+function toolMoney(value: number | null | undefined) {
+  return value == null ? "--" : `NT$ ${value.toLocaleString("zh-TW")}`;
+}
+
+function formatToolDate(value: string) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function isBestPhoneSource(sources: Array<{ numericPrice: number | null }>, source: { numericPrice: number | null }) {
+  if (source.numericPrice == null) return false;
+  const prices = sources.map((item) => item.numericPrice).filter((price): price is number => price != null);
+  return prices.length > 0 && source.numericPrice === Math.min(...prices);
+}
+
+function formatToolError(error: unknown) {
+  if (error && typeof error === "object") {
+    const toolError = error as { data?: { statusMessage?: string; message?: string }; statusMessage?: string; message?: string };
+    return toolError.data?.statusMessage || toolError.data?.message || toolError.statusMessage || toolError.message || "工具執行失敗";
+  }
+  return String(error || "工具執行失敗");
 }
 
 function getNhostConnection(): NhostConnection {
@@ -855,6 +1006,8 @@ function resolvePlayableMediaUrl(item: MediaItem) {
   const params = new URLSearchParams();
   const conn = getNhostConnection();
   if (conn.graphqlUrl) params.set("graphqlUrl", conn.graphqlUrl);
+  if (conn.adminSecret) params.set("adminSecret", conn.adminSecret);
+  if (conn.authorization) params.set("authorization", conn.authorization);
   return `/api/nhost/file/${encodeURIComponent(storageFileId)}${params.toString() ? `?${params}` : ""}`;
 }
 
@@ -2594,28 +2747,117 @@ function csvCell(value: unknown) {
       <section v-else-if="['tools', 'price-compare', 'phone-compare', 'fengbro-tube', 'fengbro-finance'].includes(currentModule)" class="module-grid">
         <section class="panel wide">
           <div class="tabs" role="tablist">
-            <button :class="{ active: activeTool === 'price-compare' }" type="button" @click="activeTool = 'price-compare'; currentModule = 'price-compare'">價格比較</button>
-            <button :class="{ active: activeTool === 'phone-compare' }" type="button" @click="activeTool = 'phone-compare'; currentModule = 'phone-compare'">手機比較</button>
-            <button :class="{ active: activeTool === 'fengbro-tube' }" type="button" @click="activeTool = 'fengbro-tube'; currentModule = 'fengbro-tube'">FengBro Tube</button>
-            <button :class="{ active: activeTool === 'fengbro-finance' }" type="button" @click="activeTool = 'fengbro-finance'; currentModule = 'fengbro-finance'">金融追蹤</button>
+            <button :class="{ active: activeTool === 'price-compare' }" type="button" @click="activeTool = 'price-compare'; currentModule = 'price-compare'">鋒兄比價</button>
+            <button :class="{ active: activeTool === 'phone-compare' }" type="button" @click="activeTool = 'phone-compare'; currentModule = 'phone-compare'">手機比價</button>
+            <button :class="{ active: activeTool === 'fengbro-tube' }" type="button" @click="activeTool = 'fengbro-tube'; currentModule = 'fengbro-tube'">鋒兄Tube</button>
+            <button :class="{ active: activeTool === 'fengbro-finance' }" type="button" @click="activeTool = 'fengbro-finance'; currentModule = 'fengbro-finance'">鋒兄金融</button>
           </div>
         </section>
 
         <template v-if="activeTool === 'price-compare'">
-          <article v-for="item in articles.filter((article) => article.category.includes('價格'))" :key="item.title" class="note-card">
-            <small>{{ item.newDate }}</small>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.content }}</p>
+          <section class="panel wide">
+            <div class="section-heading">
+              <div>
+                <h3>鋒兄比價</h3>
+                <p class="section-note">輸入商品網址或關鍵字，查詢 BigGo 搜尋價格與價格區間。</p>
+              </div>
+              <button type="button" :disabled="isPriceCompareLoading" @click="runPriceCompare">{{ isPriceCompareLoading ? "查詢中..." : "查詢" }}</button>
+            </div>
+            <form class="tool-form" @submit.prevent="runPriceCompare">
+              <input v-model="priceCompareInput" placeholder="商品網址或關鍵字，例如 iPhone 16 Pro 256G" />
+              <button type="submit" :disabled="isPriceCompareLoading"><Search :size="15" />查詢價格</button>
+            </form>
+            <p v-if="priceCompareStatus" class="status-message">{{ priceCompareStatus }}</p>
+          </section>
+          <article v-if="priceCompareResult" class="tool-card wide-tool-card">
+            <TrendingUp />
+            <strong>{{ priceCompareResult.productTitle }}</strong>
+            <span>BigGo 關鍵字：{{ priceCompareResult.keyword }}</span>
+            <div class="tool-stat-grid">
+              <div><span>目前低價</span><strong>{{ toolMoney(priceCompareResult.currentPrice) }}</strong></div>
+              <div><span>區間高點</span><strong>{{ toolMoney(priceCompareResult.historicalHigh) }}</strong></div>
+              <div><span>區間低點</span><strong>{{ toolMoney(priceCompareResult.historicalLow) }}</strong></div>
+            </div>
+            <div class="tool-chip-row">
+              <span v-for="point in priceCompareResult.series" :key="point.label" class="chip">{{ point.label }} {{ toolMoney(point.value) }}</span>
+            </div>
+            <a class="text-action" :href="priceCompareResult.biggoUrl" target="_blank" rel="noreferrer">開啟 BigGo</a>
           </article>
+          <article v-else class="tool-card"><TrendingUp /><strong>輸入商品即可開始比價</strong><span>支援網址解析與關鍵字搜尋。</span></article>
         </template>
         <template v-else-if="activeTool === 'phone-compare'">
-          <article class="tool-card"><Boxes /><strong>手機比較</strong><span>可從 Nhost 新增獨立 table 後映射進來。</span></article>
+          <section class="panel wide">
+            <div class="section-heading">
+              <div>
+                <h3>手機比價</h3>
+                <p class="section-note">比對地標網通與傑昇通信，列出可解析的最低價格。</p>
+              </div>
+              <button type="button" :disabled="isPhoneCompareLoading" @click="runPhoneCompare">{{ isPhoneCompareLoading ? "比對中..." : "比對" }}</button>
+            </div>
+            <form class="tool-form" @submit.prevent="runPhoneCompare">
+              <input v-model="phoneCompareInput" placeholder="手機型號，例如 iPhone 16、Samsung S25、A56" />
+              <button type="submit" :disabled="isPhoneCompareLoading"><Boxes :size="15" />比對手機</button>
+            </form>
+            <p v-if="phoneCompareStatus" class="status-message">{{ phoneCompareStatus }}</p>
+          </section>
+          <article v-for="item in phoneCompareResult?.comparison || []" :key="item.label" class="tool-card">
+            <Boxes />
+            <strong>{{ item.displayName }}</strong>
+            <span>{{ item.label }}</span>
+            <div class="source-list">
+              <a
+                v-for="source in item.sources"
+                :key="`${item.label}-${source.source}`"
+                :class="['source-row', { best: isBestPhoneSource(item.sources, source) }]"
+                :href="source.url"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>{{ source.source }}</span>
+                <strong>{{ source.priceLabel }}</strong>
+              </a>
+            </div>
+          </article>
+          <article v-if="phoneCompareResult && !phoneCompareResult.comparison.length" class="tool-card"><AlertCircle /><strong>暫時沒有可解析價格</strong><span>可開啟來源網站手動查看。</span></article>
         </template>
         <template v-else-if="activeTool === 'fengbro-tube'">
-          <article v-for="item in mediaSeed.videos" :key="`${item.name}-${item.url}`" class="tool-card"><Play /><strong>{{ item.name }}</strong><span>{{ item.note || statusLabel }}</span></article>
+          <section class="panel wide">
+            <div class="section-heading">
+              <div>
+                <h3>鋒兄Tube</h3>
+                <p class="section-note">讀取鋒兄常用 YouTube 頻道 RSS，集中瀏覽近期影片。</p>
+              </div>
+              <button type="button" :disabled="isTubeLoading" @click="runTubeLookup">{{ isTubeLoading ? "載入中..." : "重新載入" }}</button>
+            </div>
+            <p v-if="tubeStatus" class="status-message">{{ tubeStatus }}</p>
+          </section>
+          <article v-for="video in tubeResult?.recentVideos || []" :key="video.id" class="tool-card video-tool-card">
+            <img v-if="video.thumbnail" :src="video.thumbnail" :alt="video.title" loading="lazy" />
+            <Play v-else />
+            <strong>{{ video.title }}</strong>
+            <span>{{ video.channelLabel }} / {{ formatToolDate(video.published) }}</span>
+            <a class="text-action" :href="video.url" target="_blank" rel="noreferrer">播放</a>
+          </article>
+          <article v-if="!tubeResult" class="tool-card"><Play /><strong>載入鋒兄Tube</strong><span>按下重新載入取得近期影片。</span></article>
         </template>
         <template v-else>
+          <section class="panel wide">
+            <div class="section-heading">
+              <div>
+                <h3>鋒兄金融</h3>
+                <p class="section-note">整理常用金融來源，搭配 Nhost 金融追蹤資料一起查看。</p>
+              </div>
+              <button type="button" :disabled="isFinanceToolLoading" @click="runFinanceLookup">{{ isFinanceToolLoading ? "載入中..." : "載入來源" }}</button>
+            </div>
+            <p v-if="financeToolStatus" class="status-message">{{ financeToolStatus }}</p>
+          </section>
           <article v-for="item in filteredFinanceWatch" :key="`${item.name}-${item.symbol}`" class="tool-card"><CircleDollarSign /><strong>{{ item.name }} / {{ item.symbol }}</strong><span>{{ item.value }} / {{ item.note }}</span></article>
+          <article v-for="item in financeToolResult?.items || []" :key="item.id" class="tool-card">
+            <CircleDollarSign />
+            <strong>{{ item.name }} / {{ item.symbol }}</strong>
+            <span>{{ item.group }} / {{ item.note }}</span>
+            <a class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟來源</a>
+          </article>
         </template>
       </section>
 

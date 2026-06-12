@@ -481,6 +481,89 @@ a {
   resize: vertical;
 }
 
+.tool-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+}
+
+.tool-form input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  padding: 11px 12px;
+  outline: 0;
+}
+
+.tool-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 14px;
+  background: #1f2a23;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.tool-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tool-stat-grid div,
+.source-row {
+  border-radius: 14px;
+  background: rgba(31, 42, 35, 0.06);
+  padding: 12px;
+}
+
+.tool-stat-grid div {
+  display: grid;
+  gap: 4px;
+}
+
+.tool-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.source-row.best {
+  background: rgba(70, 109, 82, 0.14);
+  color: #23442d;
+}
+
+.wide-tool-card {
+  grid-column: span 12;
+}
+
+.video-tool-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
 .table-wrap {
   overflow: auto;
   border-radius: 18px;
@@ -1210,7 +1293,12 @@ label.csv-btn {
   .timeline article,
   .quick-form,
   .quick-form.note-form,
+  .tool-form,
   .crud-form {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-stat-grid {
     grid-template-columns: 1fr;
   }
 
