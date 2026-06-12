@@ -1160,6 +1160,109 @@ async function fetchMediaPreviewData(item: MediaItem) {
   });
 }
 
+function guessDocumentType(item: MediaItem, contentType = "") {
+  const source = `${item.name} ${item.url} ${item.note}`.toLowerCase();
+  const type = contentType.toLowerCase();
+  if (type.includes("pdf") || source.includes(".pdf")) return "pdf";
+  if (type.includes("json") || source.includes(".json")) return "json";
+  if (
+    type.includes("presentation") ||
+    type.includes("powerpoint") ||
+    type.includes("officedocument.presentation") ||
+    source.includes(".pptx") ||
+    source.includes(".ppt")
+  ) {
+    return "presentation";
+  }
+  if (type.startsWith("text/") || source.includes(".txt") || source.includes(".md") || source.includes(".csv")) return "text";
+  return "file";
+}
+
+function normalizeDocumentContentType(kind: string, contentType: string) {
+  if (kind === "pdf") return "application/pdf";
+  if (kind === "json") return "application/json";
+  if (kind === "presentation") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  return contentType || "application/octet-stream";
+}
+
+function decodeBase64Text(data: string) {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    };
+    return entities[char] || char;
+  });
+}
+
+function makeHtmlPreviewUrl(title: string, body: string) {
+  return URL.createObjectURL(
+    new Blob(
+      [
+        `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f2ec;color:#1f2a23}main{max-width:1080px;margin:0 auto;padding:32px}pre{white-space:pre-wrap;word-break:break-word;background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(31,42,35,.12);line-height:1.55}a.button{display:inline-flex;margin:12px 12px 12px 0;padding:12px 18px;border-radius:999px;background:#1f2a23;color:#fff;text-decoration:none;font-weight:800}.muted{color:#69766d}</style></head><body><main>${body}</main></body></html>`
+      ],
+      { type: "text/html;charset=utf-8" }
+    )
+  );
+}
+
+function makeJsonPreviewUrl(item: MediaItem, data: string) {
+  let content = decodeBase64Text(data);
+  try {
+    content = JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    // Keep original text when the file is JSON-like but not strictly valid JSON.
+  }
+  return makeHtmlPreviewUrl(item.name || "JSON 預覽", `<h1>${escapeHtml(item.name || "JSON 預覽")}</h1><pre>${escapeHtml(content)}</pre>`);
+}
+
+function makeTextPreviewUrl(item: MediaItem, data: string) {
+  const content = decodeBase64Text(data);
+  return makeHtmlPreviewUrl(item.name || "文字預覽", `<h1>${escapeHtml(item.name || "文字預覽")}</h1><pre>${escapeHtml(content)}</pre>`);
+}
+
+function makePresentationPreviewUrl(item: MediaItem, fileUrl: string) {
+  const officeUrl = /^https?:\/\//i.test(item.url) ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(item.url)}` : "";
+  return makeHtmlPreviewUrl(
+    item.name || "簡報預覽",
+    `<h1>${escapeHtml(item.name || "簡報預覽")}</h1><p class="muted">瀏覽器無法直接渲染 PPT/PPTX。你可以下載檔案，或在檔案為公開連結時嘗試使用 Office Viewer。</p><a class="button" href="${fileUrl}" download="${escapeHtml(item.name || "presentation.pptx")}">下載 PPTX</a>${officeUrl ? `<a class="button" href="${officeUrl}" target="_blank" rel="noreferrer">用 Office Viewer 開啟</a>` : ""}`
+  );
+}
+
+async function buildDocumentPreviewUrl(item: MediaItem) {
+  const key = mediaItemKey(item);
+  if (mediaPreviewBlobUrls[key]) return mediaPreviewBlobUrls[key];
+
+  const result = await fetchMediaPreviewData(item);
+  const kind = guessDocumentType(item, result.contentType);
+  const contentType = normalizeDocumentContentType(kind, result.contentType);
+  const fileUrl = URL.createObjectURL(base64ToBlob(result.data, contentType));
+  let previewUrl = fileUrl;
+
+  if (kind === "json") {
+    previewUrl = makeJsonPreviewUrl(item, result.data);
+  } else if (kind === "text") {
+    previewUrl = makeTextPreviewUrl(item, result.data);
+  } else if (kind === "presentation") {
+    previewUrl = makePresentationPreviewUrl(item, fileUrl);
+  }
+
+  mediaPreviewBlobUrls[key] = previewUrl;
+  return previewUrl;
+}
+
 function base64ToBlob(data: string, contentType: string) {
   const binary = atob(data);
   const chunks: Uint8Array[] = [];
@@ -1183,7 +1286,7 @@ async function openDocumentPreview(item: MediaItem) {
   }
 
   try {
-    const previewUrl = await fetchMediaPreviewBlobUrl(item);
+    const previewUrl = await buildDocumentPreviewUrl(item);
     if (previewWindow) {
       previewWindow.location.href = previewUrl;
     } else {
