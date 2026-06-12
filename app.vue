@@ -1093,6 +1093,23 @@ type NhostStorageUploadResponse = {
     name?: string;
     size?: number;
   };
+  // 可能的其他欄位格式
+  file?: {
+    id?: string;
+    name?: string;
+    size?: number;
+  };
+  metadata?: {
+    id?: string;
+    name?: string;
+    size?: number;
+  };
+  // 有時直接在 ProcessedFiles 中
+  ProcessedFiles?: Array<{
+    id?: string;
+    name?: string;
+    size?: number;
+  }>;
 };
 
 type NhostStorageUploadResult = {
@@ -1122,14 +1139,33 @@ async function uploadFileDirectlyToNhost(file: File, conn: NhostConnection): Pro
   if (conn.authorization) headers.Authorization = conn.authorization;
   if (conn.adminSecret) headers["x-hasura-admin-secret"] = conn.adminSecret;
 
+  console.log("上傳至 Nhost Storage:", {
+    endpoint: uploadEndpoint,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type,
+    hasAuth: !!conn.authorization,
+    hasAdminSecret: !!conn.adminSecret
+  });
+
   try {
     const response = await $fetch<NhostStorageUploadResponse | NhostStorageUploadResponse[]>(uploadEndpoint, {
       method: "POST",
       headers,
       body: form
     });
+    
+    console.log("上傳成功，收到回應");
     return normalizeStorageUploadResponse(response, uploadEndpoint, file);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("上傳請求失敗:", error);
+    
+    // 提供更詳細的錯誤訊息
+    if (error.data) {
+      console.error("錯誤詳情:", error.data);
+      throw new Error(`Nhost Storage 上傳失敗：${error.data.message || error.message || "未知錯誤"}`);
+    }
+    
     throw error;
   }
 }
@@ -1143,21 +1179,71 @@ function deriveStorageFilesEndpoint(graphqlUrl: string) {
 }
 
 function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | NhostStorageUploadResponse[], uploadEndpoint: string, file: File): NhostStorageUploadResult {
-  const uploaded = Array.isArray(response) ? response[0] : response;
-  const fileId = uploaded?.id || uploaded?.fileMetadata?.id;
-  const fileName = uploaded?.name || uploaded?.fileMetadata?.name || file.name;
+  console.log("Nhost Storage 原始回應:", JSON.stringify(response, null, 2));
+  
+  let uploaded: NhostStorageUploadResponse;
+  
+  // 處理陣列回應
+  if (Array.isArray(response)) {
+    uploaded = response[0];
+  } else if (response.ProcessedFiles && Array.isArray(response.ProcessedFiles)) {
+    // 有些版本的 Nhost 會將檔案放在 ProcessedFiles 陣列中
+    uploaded = response.ProcessedFiles[0];
+  } else {
+    uploaded = response;
+  }
+  
+  // 嘗試從多個可能的位置提取檔案 ID
+  const fileId = 
+    uploaded?.id || 
+    uploaded?.fileMetadata?.id || 
+    uploaded?.file?.id ||
+    uploaded?.metadata?.id;
+    
+  const fileName = 
+    uploaded?.name || 
+    uploaded?.fileMetadata?.name || 
+    uploaded?.file?.name ||
+    uploaded?.metadata?.name ||
+    file.name;
+    
+  const fileSize = 
+    uploaded?.size ?? 
+    uploaded?.fileMetadata?.size ?? 
+    uploaded?.file?.size ??
+    uploaded?.metadata?.size ??
+    file.size;
 
-  console.log("Nhost 上傳回應:", { uploaded, fileId, fileName });
+  console.log("解析結果:", { 
+    isArray: Array.isArray(response),
+    hasProcessedFiles: !!(response as any).ProcessedFiles,
+    uploaded,
+    fileId, 
+    fileName,
+    fileSize
+  });
 
   if (!fileId) {
-    console.error("Nhost Storage 回應中缺少檔案 ID:", response);
-    throw new Error("Nhost Storage 上傳失敗：回應中缺少檔案 ID");
+    console.error("Nhost Storage 回應中缺少檔案 ID");
+    console.error("完整回應:", response);
+    console.error("解析的 uploaded 物件:", uploaded);
+    
+    // 提供更詳細的錯誤訊息
+    const responseStr = JSON.stringify(response).substring(0, 300);
+    throw new Error(`Nhost Storage 上傳失敗：回應中缺少檔案 ID。回應內容：${responseStr}`);
   }
 
   const fullUrl = `${uploadEndpoint}/${fileId}`;
-  console.log("建構的圖片 URL:", fullUrl);
+  console.log("建構的完整 URL:", fullUrl);
 
   return {
+    ok: true,
+    id: fileId,
+    name: fileName,
+    size: fileSize,
+    url: fullUrl
+  };
+}
     ok: true,
     id: fileId,
     name: fileName,
