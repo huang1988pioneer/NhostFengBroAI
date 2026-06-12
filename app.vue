@@ -1244,13 +1244,6 @@ function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | N
     url: fullUrl
   };
 }
-    ok: true,
-    id: fileId,
-    name: fileName,
-    size: uploaded?.size ?? uploaded?.fileMetadata?.size ?? file.size,
-    url: fullUrl
-  };
-}
 
 function formatStorageUploadError(error: unknown) {
   if (error && typeof error === "object") {
