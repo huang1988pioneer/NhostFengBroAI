@@ -79,7 +79,8 @@ async function executeGraphql<T>(
 function shouldAutoTrack(errors?: GraphqlError[]) {
   if (!errors?.length) return false;
   const message = errors.map((error) => error.message).join(" ").toLowerCase();
-  return message.includes("not tracked") || (message.includes("field") && message.includes("query_root"));
+  return message.includes("not tracked")
+    || (message.includes("field") && (message.includes("query_root") || message.includes("mutation_root")));
 }
 
 function extractTablesFromQuery(query: string) {

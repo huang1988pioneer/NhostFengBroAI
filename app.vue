@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import {
+  AlertCircle,
   BarChart3,
   BookOpenText,
   Boxes,
@@ -52,7 +53,7 @@ import {
   upsertBanks,
   upsertRoutines
 } from "~/utils/nhostMutations";
-import { deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
+import { deleteRecordById, deleteRecordsByName, insertRecord, updateRecord } from "~/utils/nhostCrud";
 
 type MenuItem = {
   id: string;
@@ -794,9 +795,14 @@ const removeMediaItem = (key: keyof typeof mediaSeed.value, name: string) => {
 };
 
 function activeMediaTable() {
-  if (currentModule.value === "documents") return "commondocument";
-  if (currentModule.value === "podcast") return "podcast";
-  return currentModule.value.slice(0, -1);
+  const moduleToTable: Record<string, string> = {
+    images: "image",
+    videos: "video",
+    music: "music",
+    documents: "commondocument",
+    podcast: "podcast"
+  };
+  return moduleToTable[currentModule.value] || currentModule.value;
 }
 
 function activeMediaKey(): keyof typeof mediaSeed.value {
@@ -804,14 +810,44 @@ function activeMediaKey(): keyof typeof mediaSeed.value {
   return currentModule.value as keyof typeof mediaSeed.value;
 }
 
-async function deleteMediaItem(name: string) {
-  await deleteFromNhostByName(activeMediaTable(), name, () => removeMediaItem(activeMediaKey(), name));
+async function deleteMediaItem(item: MediaItem) {
+  const conn = getNhostConnection();
+  const table = activeMediaTable();
+  const mediaKey = activeMediaKey();
+
+  if (!conn.graphqlUrl) {
+    removeMediaItem(mediaKey, item.name);
+    showCsvToast("未設定 Nhost GraphQL URL，已先從畫面移除。");
+    return;
+  }
+
+  const storageFileId = item.url ? extractNhostStorageFileId(item.url) : "";
+  if (storageFileId) {
+    await deleteFileFromNhostStorage(storageFileId, conn);
+  }
+
+  const result = item.id
+    ? await deleteRecordById(conn, table, item.id)
+    : await deleteRecordsByName(conn, table, item.name);
+
+  removeMediaItem(mediaKey, item.name);
+  clearMediaState(item);
+  showCsvToast(result.message + (storageFileId ? "，Storage 檔案已刪除。" : ""));
 }
 
 function resolvePlayableMediaUrl(item: MediaItem) {
   if (!item.url) return "";
-  if (mediaPreviewUrls[mediaItemKey(item)]) return mediaPreviewUrls[mediaItemKey(item)];
+  
+  const key = mediaItemKey(item);
+  if (mediaPreviewUrls[key]) return mediaPreviewUrls[key];
+  
   if (currentModule.value !== "videos" && currentModule.value !== "music" && currentModule.value !== "podcast") return item.url;
+
+  // 檢查 URL 格式是否完整
+  if (!isValidStorageUrl(item.url)) {
+    console.warn("媒體 URL 格式不完整:", item.url);
+    return ""; // 回傳空字串以觸發錯誤狀態
+  }
 
   const storageFileId = extractNhostStorageFileId(item.url);
   if (!storageFileId) return item.url;
@@ -830,6 +866,23 @@ function extractNhostStorageFileId(rawUrl: string) {
   } catch {
     return "";
   }
+}
+
+async function deleteFileFromNhostStorage(fileId: string, conn: NhostConnection) {
+  await $fetch(`/api/nhost/file/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+    body: conn
+  });
+}
+
+function clearMediaState(item: MediaItem) {
+  const key = mediaItemKey(item);
+  if (mediaPreviewUrls[key]) delete mediaPreviewUrls[key];
+
+  if (!mediaPlaybackErrors.value[key]) return;
+  const next = { ...mediaPlaybackErrors.value };
+  delete next[key];
+  mediaPlaybackErrors.value = next;
 }
 
 function clearMediaPlaybackError(item: MediaItem) {
@@ -885,9 +938,9 @@ function confirmDeleteRoutine(name: string) {
   });
 }
 
-function confirmDeleteMediaItem(name: string) {
-  requestDelete(name, async () => {
-    await deleteMediaItem(name);
+function confirmDeleteMediaItem(item: MediaItem) {
+  requestDelete(item.name, async () => {
+    await deleteMediaItem(item);
   });
 }
 
@@ -1094,12 +1147,22 @@ function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | N
   const fileId = uploaded?.id || uploaded?.fileMetadata?.id;
   const fileName = uploaded?.name || uploaded?.fileMetadata?.name || file.name;
 
+  console.log("Nhost 上傳回應:", { uploaded, fileId, fileName });
+
+  if (!fileId) {
+    console.error("Nhost Storage 回應中缺少檔案 ID:", response);
+    throw new Error("Nhost Storage 上傳失敗：回應中缺少檔案 ID");
+  }
+
+  const fullUrl = `${uploadEndpoint}/${fileId}`;
+  console.log("建構的圖片 URL:", fullUrl);
+
   return {
     ok: true,
     id: fileId,
     name: fileName,
     size: uploaded?.size ?? uploaded?.fileMetadata?.size ?? file.size,
-    url: fileId ? `${uploadEndpoint}/${fileId}` : uploadEndpoint
+    url: fullUrl
   };
 }
 
@@ -1279,6 +1342,13 @@ function base64ToBlob(data: string, contentType: string) {
 
 async function openDocumentPreview(item: MediaItem) {
   if (!import.meta.client || !item.url) return;
+  
+  // 檢查 URL 格式是否完整
+  if (!isValidStorageUrl(item.url)) {
+    showCsvToast(`文件 URL 格式不完整，無法開啟：${item.url}`, true);
+    return;
+  }
+
   const previewWindow = window.open("", "_blank");
   if (previewWindow) {
     previewWindow.opener = null;
@@ -1312,12 +1382,41 @@ async function loadImagePreviews() {
       if (mediaPreviewUrls[key]) return;
 
       try {
+        // 檢查 URL 格式是否完整（應該包含檔案 ID）
+        if (item.url && !isValidStorageUrl(item.url)) {
+          console.warn("圖片 URL 格式不完整:", item.url);
+          mediaPreviewUrls[key] = ""; // 設為空字串，讓圖片顯示錯誤狀態
+          return;
+        }
+
         mediaPreviewUrls[key] = await fetchMediaPreviewUrl(item, "image/*");
-      } catch {
+      } catch (error) {
+        console.error("載入圖片預覽失敗:", item.name, error);
         mediaPreviewUrls[key] = item.url;
       }
     })
   );
+}
+
+// 檢查 Storage URL 是否有檔案 ID（完整格式）
+function isValidStorageUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    // 完整的 URL 應該是 /v1/files/{fileId} 或更長的路徑
+    // 如果只是 /v1/files 或 /v1/files/ 則不完整
+    const pathname = urlObj.pathname;
+    const hasFileId = pathname.split('/').filter(Boolean).length > 2; // 至少要有 v1, files, {fileId}
+    return hasFileId;
+  } catch {
+    return false;
+  }
+}
+
+function handleImageLoadError(item: MediaItem) {
+  const key = mediaItemKey(item);
+  console.error("圖片載入失敗:", item.name, item.url);
+  // 標記為載入失敗，以便顯示錯誤訊息
+  mediaPreviewUrls[key] = "";
 }
 
 function startEditBank(row: Bank) {
@@ -2264,29 +2363,62 @@ function csvCell(value: unknown) {
           </form>
         </section>
         <article v-for="item in activeMediaItems" :key="`${item.name}-${item.url}`" class="media-tile">
-          <img v-if="currentModule === 'images' && item.url" class="media-preview" :src="mediaDisplayUrl(item)" :alt="item.name" loading="lazy" />
-          <video
-            v-else-if="currentModule === 'videos' && item.url"
-            class="media-preview"
-            :src="resolvePlayableMediaUrl(item)"
-            controls
-            preload="metadata"
-            @error="handleMediaPlaybackError(item)"
-            @loadedmetadata="clearMediaPlaybackError(item)"
-            @canplay="clearMediaPlaybackError(item)"
-          />
-          <audio
-            v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url"
-            class="media-audio"
-            :src="resolvePlayableMediaUrl(item)"
-            controls
-            preload="metadata"
-            @error="handleMediaPlaybackError(item)"
-            @loadedmetadata="clearMediaPlaybackError(item)"
-            @canplay="clearMediaPlaybackError(item)"
-          />
-          <button v-else-if="currentModule === 'documents' && item.url" class="media-file-link" type="button" @click="openDocumentPreview(item)">
-            <BookOpenText :size="24" />開啟文件
+          <div v-if="currentModule === 'images' && item.url" class="media-preview-wrapper">
+            <img 
+              v-if="mediaDisplayUrl(item)" 
+              class="media-preview" 
+              :src="mediaDisplayUrl(item)" 
+              :alt="item.name" 
+              loading="lazy"
+              @error="handleImageLoadError(item)"
+            />
+            <div v-else class="media-error">
+              <AlertCircle :size="32" />
+              <p>URL 格式不完整</p>
+            </div>
+          </div>
+          <div v-else-if="currentModule === 'videos' && item.url" class="media-preview-wrapper">
+            <video
+              v-if="resolvePlayableMediaUrl(item)"
+              class="media-preview"
+              :src="resolvePlayableMediaUrl(item)"
+              controls
+              preload="metadata"
+              @error="handleMediaPlaybackError(item)"
+              @loadedmetadata="clearMediaPlaybackError(item)"
+              @canplay="clearMediaPlaybackError(item)"
+            />
+            <div v-else class="media-error">
+              <AlertCircle :size="32" />
+              <p>URL 格式不完整</p>
+            </div>
+          </div>
+          <div v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url">
+            <audio
+              v-if="resolvePlayableMediaUrl(item)"
+              class="media-audio"
+              :src="resolvePlayableMediaUrl(item)"
+              controls
+              preload="metadata"
+              @error="handleMediaPlaybackError(item)"
+              @loadedmetadata="clearMediaPlaybackError(item)"
+              @canplay="clearMediaPlaybackError(item)"
+            />
+            <div v-else class="media-error">
+              <AlertCircle :size="32" />
+              <p>URL 格式不完整</p>
+            </div>
+          </div>
+          <button 
+            v-else-if="currentModule === 'documents' && item.url" 
+            class="media-file-link" 
+            type="button" 
+            :disabled="!isValidStorageUrl(item.url)"
+            @click="openDocumentPreview(item)"
+          >
+            <BookOpenText v-if="isValidStorageUrl(item.url)" :size="24" />
+            <AlertCircle v-else :size="24" />
+            {{ isValidStorageUrl(item.url) ? '開啟文件' : 'URL 格式不完整' }}
           </button>
           <component v-else :is="activeMediaIcon" :size="28" />
           <strong>{{ item.name }}</strong>
@@ -2294,7 +2426,7 @@ function csvCell(value: unknown) {
           <span v-if="mediaPlaybackErrors[mediaItemKey(item)]" class="media-error">{{ mediaPlaybackErrors[mediaItemKey(item)] }}</span>
           <button v-if="currentModule === 'documents' && item.url" class="text-action" type="button" @click="openDocumentPreview(item)">預覽</button>
           <a v-else-if="item.url" class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟</a>
-          <button class="text-action danger" type="button" @click="confirmDeleteMediaItem(item.name)">刪除</button>
+          <button class="text-action danger" type="button" @click="confirmDeleteMediaItem(item)">刪除</button>
         </article>
       </section>
 

@@ -701,15 +701,33 @@ input.editing {
   object-fit: cover;
 }
 
+.media-preview-wrapper {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
 .media-audio {
   width: 100%;
 }
 
 .media-error {
-  color: #9f2f2f;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(151, 54, 43, 0.08);
+  border-radius: 16px;
+  color: #97362b;
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.45;
+  padding: 16px;
+  text-align: center;
 }
 
 .media-file-link {
@@ -731,6 +749,16 @@ input.editing {
 
 .media-file-link:hover {
   background: rgba(31, 42, 35, 0.12);
+}
+
+.media-file-link:disabled {
+  background: rgba(151, 54, 43, 0.08);
+  color: #97362b;
+  cursor: not-allowed;
+}
+
+.media-file-link:disabled:hover {
+  background: rgba(151, 54, 43, 0.08);
 }
 
 .routine-card div {
