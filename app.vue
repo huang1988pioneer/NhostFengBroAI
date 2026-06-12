@@ -368,6 +368,7 @@ const editingBankId = ref("");
 const editingRoutineId = ref("");
 const editingCommonId = ref("");
 const submitting = ref(false);
+const mediaPlaybackErrors = ref<Record<string, string>>({});
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
 const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
@@ -804,6 +805,44 @@ function activeMediaKey(): keyof typeof mediaSeed.value {
 
 async function deleteMediaItem(name: string) {
   await deleteFromNhostByName(activeMediaTable(), name, () => removeMediaItem(activeMediaKey(), name));
+}
+
+function resolvePlayableMediaUrl(item: MediaItem) {
+  if (!item.url) return "";
+  if (currentModule.value !== "music" && currentModule.value !== "podcast") return item.url;
+
+  const storageFileId = extractNhostStorageFileId(item.url);
+  if (!storageFileId) return item.url;
+
+  const params = new URLSearchParams();
+  const conn = getNhostConnection();
+  if (conn.graphqlUrl) params.set("graphqlUrl", conn.graphqlUrl);
+  return `/api/nhost/file/${encodeURIComponent(storageFileId)}${params.toString() ? `?${params}` : ""}`;
+}
+
+function extractNhostStorageFileId(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl);
+    const match = url.pathname.match(/\/v1\/files\/([^/?#]+)/);
+    return match?.[1] || "";
+  } catch {
+    return "";
+  }
+}
+
+function clearMediaPlaybackError(item: MediaItem) {
+  const key = mediaItemKey(item);
+  if (!mediaPlaybackErrors.value[key]) return;
+  const next = { ...mediaPlaybackErrors.value };
+  delete next[key];
+  mediaPlaybackErrors.value = next;
+}
+
+function handleMediaPlaybackError(item: MediaItem) {
+  mediaPlaybackErrors.value = {
+    ...mediaPlaybackErrors.value,
+    [mediaItemKey(item)]: "音訊無法直接播放。請確認連結是 mp3、m4a、ogg、wav 或 Nhost Storage 檔案，且檔案可被目前網站讀取。"
+  };
 }
 
 // Wrapper functions for delete with confirmation
@@ -2016,13 +2055,23 @@ function csvCell(value: unknown) {
         <article v-for="item in activeMediaItems" :key="`${item.name}-${item.url}`" class="media-tile">
           <img v-if="currentModule === 'images' && item.url" class="media-preview" :src="mediaDisplayUrl(item)" :alt="item.name" loading="lazy" />
           <video v-else-if="currentModule === 'videos' && item.url" class="media-preview" :src="item.url" controls preload="metadata" />
-          <audio v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url" class="media-audio" :src="item.url" controls />
+          <audio
+            v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url"
+            class="media-audio"
+            :src="resolvePlayableMediaUrl(item)"
+            controls
+            preload="metadata"
+            @error="handleMediaPlaybackError(item)"
+            @loadedmetadata="clearMediaPlaybackError(item)"
+            @canplay="clearMediaPlaybackError(item)"
+          />
           <button v-else-if="currentModule === 'documents' && item.url" class="media-file-link" type="button" @click="openDocumentPreview(item)">
             <BookOpenText :size="24" />開啟文件
           </button>
           <component v-else :is="activeMediaIcon" :size="28" />
           <strong>{{ item.name }}</strong>
           <span>{{ item.note || statusLabel }}</span>
+          <span v-if="mediaPlaybackErrors[mediaItemKey(item)]" class="media-error">{{ mediaPlaybackErrors[mediaItemKey(item)] }}</span>
           <button v-if="currentModule === 'documents' && item.url" class="text-action" type="button" @click="openDocumentPreview(item)">預覽</button>
           <a v-else-if="item.url" class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟</a>
           <button class="text-action danger" type="button" @click="confirmDeleteMediaItem(item.name)">刪除</button>
