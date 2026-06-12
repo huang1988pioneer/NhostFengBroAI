@@ -359,6 +359,7 @@ const foodPhotoInput = ref<HTMLInputElement | null>(null);
 const isRoutinePhotoUploading = ref(false);
 const routinePhotoInput = ref<HTMLInputElement | null>(null);
 const mediaPreviewUrls = reactive<Record<string, string>>({});
+const mediaPreviewBlobUrls = reactive<Record<string, string>>({});
 
 // ?? Module-level edit state ???????????????????????????????????????????????????
 const editingSubId = ref("");
@@ -1130,27 +1131,57 @@ async function fetchMediaPreviewUrl(item: MediaItem, fallbackContentType = "appl
   const key = mediaItemKey(item);
   if (mediaPreviewUrls[key]) return mediaPreviewUrls[key];
 
+  const result = await fetchMediaPreviewData(item);
+  const previewUrl = `data:${result.contentType || fallbackContentType};base64,${result.data}`;
+  mediaPreviewUrls[key] = previewUrl;
+  return previewUrl;
+}
+
+async function fetchMediaPreviewBlobUrl(item: MediaItem, fallbackContentType = "application/octet-stream") {
+  const key = mediaItemKey(item);
+  if (mediaPreviewBlobUrls[key]) return mediaPreviewBlobUrls[key];
+
+  const result = await fetchMediaPreviewData(item);
+  const previewUrl = URL.createObjectURL(base64ToBlob(result.data, result.contentType || fallbackContentType));
+  mediaPreviewBlobUrls[key] = previewUrl;
+  return previewUrl;
+}
+
+async function fetchMediaPreviewData(item: MediaItem) {
   const conn = getNhostConnection();
-  const result = await $fetch<{ ok: boolean; contentType: string; data: string }>("/api/nhost/file", {
+  return await $fetch<{ ok: boolean; contentType: string; data: string }>("/api/nhost/file", {
     method: "POST",
     body: {
       url: item.url,
       ...conn
     }
   });
+}
 
-  const previewUrl = `data:${result.contentType || fallbackContentType};base64,${result.data}`;
-  mediaPreviewUrls[key] = previewUrl;
-  return previewUrl;
+function base64ToBlob(data: string, contentType: string) {
+  const binary = atob(data);
+  const chunks: Uint8Array[] = [];
+  for (let offset = 0; offset < binary.length; offset += 8192) {
+    const slice = binary.slice(offset, offset + 8192);
+    const bytes = new Uint8Array(slice.length);
+    for (let index = 0; index < slice.length; index += 1) {
+      bytes[index] = slice.charCodeAt(index);
+    }
+    chunks.push(bytes);
+  }
+  return new Blob(chunks, { type: contentType });
 }
 
 async function openDocumentPreview(item: MediaItem) {
   if (!import.meta.client || !item.url) return;
   const previewWindow = window.open("", "_blank");
-  if (previewWindow) previewWindow.opener = null;
+  if (previewWindow) {
+    previewWindow.opener = null;
+    previewWindow.document.write("<!doctype html><title>文件預覽</title><body style=\"font-family:system-ui;padding:24px\">正在載入文件...</body>");
+  }
 
   try {
-    const previewUrl = await fetchMediaPreviewUrl(item);
+    const previewUrl = await fetchMediaPreviewBlobUrl(item);
     if (previewWindow) {
       previewWindow.location.href = previewUrl;
     } else {
