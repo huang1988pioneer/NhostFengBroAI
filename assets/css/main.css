@@ -151,6 +151,7 @@ a {
 }
 
 .menu-button span {
+  flex: 1;
   min-width: 0;
   font-size: 14px;
   font-weight: 750;
@@ -172,6 +173,24 @@ a {
 
 .menu-button.child {
   padding-block: 9px;
+}
+
+.menu-count {
+  flex: 0 0 auto;
+  min-width: 28px;
+  border-radius: 999px;
+  background: rgba(31, 42, 35, 0.08);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.menu-button.active .menu-count {
+  background: rgba(185, 130, 40, 0.16);
+  color: #7d5311;
 }
 
 .sidebar-note {
@@ -208,9 +227,22 @@ a {
 }
 
 .page-title h1 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
   margin: 4px 0 0;
   font-size: 30px;
   line-height: 1.15;
+}
+
+.page-count {
+  border-radius: 999px;
+  background: rgba(31, 42, 35, 0.08);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  padding: 6px 10px;
 }
 
 .search-box {
@@ -1195,6 +1227,7 @@ label.csv-btn {
 
   .brand div:last-child,
   .menu-button span,
+  .menu-count,
   .sidebar-note span {
     display: none;
   }
@@ -1244,6 +1277,7 @@ label.csv-btn {
 
   .brand div:last-child,
   .menu-button span,
+  .menu-count,
   .sidebar-note span {
     display: block;
   }

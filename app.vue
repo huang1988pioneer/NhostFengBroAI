@@ -431,6 +431,7 @@ const financeToolStatus = ref("");
 const isFinanceToolLoading = ref(false);
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
+const activeModuleCount = computed(() => moduleItemCount(currentModule.value));
 const activeCrudConfig = computed(() => crudConfigs.find((config) => config.table === activeCrudTable.value) || crudConfigs[0]);
 const recurringSubscriptions = computed(() => subscriptions.value.filter((item) => item.continue).length);
 const totalTwdSubscriptions = computed(() => subscriptions.value.filter((item) => item.currency === "TWD").reduce((sum, item) => sum + item.price, 0));
@@ -612,6 +613,34 @@ function filterRows<T>(rows: T[], keyword: string): T[] {
   const normalized = keyword.trim().toLowerCase();
   if (!normalized) return rows;
   return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalized));
+}
+
+function moduleItemCount(id: string): number | null {
+  const counts: Record<string, number> = {
+    dashboard: subscriptions.value.length + foods.value.length + articles.value.length + commonAccounts.value.length + banks.value.length + routines.value.length + totalMediaCount(),
+    subscription: subscriptions.value.length,
+    food: foods.value.length,
+    notes: articles.value.length,
+    common: commonAccounts.value.length,
+    images: mediaSeed.value.images.length,
+    videos: mediaSeed.value.videos.length,
+    music: mediaSeed.value.music.length,
+    documents: mediaSeed.value.documents.length,
+    podcast: mediaSeed.value.podcasts.length,
+    bank: banks.value.length,
+    routine: routines.value.length,
+    tools: 4,
+    "price-compare": priceCompareResult.value ? 1 : articles.value.filter((article) => article.category.includes("價格")).length,
+    "phone-compare": phoneCompareResult.value?.comparison.length || 0,
+    "fengbro-tube": tubeResult.value?.recentVideos.length || mediaSeed.value.videos.length,
+    "fengbro-finance": (financeToolResult.value?.items.length || 0) + financeWatch.value.length
+  };
+
+  return Object.prototype.hasOwnProperty.call(counts, id) ? counts[id] : null;
+}
+
+function totalMediaCount() {
+  return mediaSeed.value.images.length + mediaSeed.value.videos.length + mediaSeed.value.music.length + mediaSeed.value.documents.length + mediaSeed.value.podcasts.length;
 }
 
 async function runPriceCompare() {
@@ -2350,6 +2379,7 @@ function csvCell(value: unknown) {
               {{ item.label }}
               <small v-if="item.subtitle">{{ item.subtitle }}</small>
             </span>
+            <strong v-if="moduleItemCount(item.id) !== null" class="menu-count">{{ moduleItemCount(item.id) }}</strong>
           </button>
           <div v-if="item.children?.length && expandedMenus.includes(item.id)" class="submenu">
             <button
@@ -2361,6 +2391,7 @@ function csvCell(value: unknown) {
             >
               <component :is="child.icon" :size="16" />
               <span>{{ child.label }}</span>
+              <strong v-if="moduleItemCount(child.id) !== null" class="menu-count">{{ moduleItemCount(child.id) }}</strong>
             </button>
           </div>
         </template>
@@ -2380,7 +2411,10 @@ function csvCell(value: unknown) {
         </button>
         <div class="page-title">
           <p>Nuxt Workspace</p>
-          <h1>{{ activeItem.label }}</h1>
+          <h1>
+            {{ activeItem.label }}
+            <span v-if="activeModuleCount !== null" class="page-count">共 {{ activeModuleCount }} 筆</span>
+          </h1>
         </div>
         <label class="search-box">
           <Search :size="18" />
