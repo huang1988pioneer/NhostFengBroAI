@@ -358,6 +358,7 @@ const isFoodPhotoUploading = ref(false);
 const foodPhotoInput = ref<HTMLInputElement | null>(null);
 const isRoutinePhotoUploading = ref(false);
 const routinePhotoInput = ref<HTMLInputElement | null>(null);
+const mediaPreviewUrls = reactive<Record<string, string>>({});
 
 // ?? Module-level edit state ???????????????????????????????????????????????????
 const editingSubId = ref("");
@@ -421,6 +422,16 @@ const statusLabel = computed(() => {
   if (dataSource.value === "empty") return "資料庫無資料";
   return "備援資料";
 });
+
+watch(
+  () => [currentModule.value, activeMediaItems.value.map((item) => `${mediaItemKey(item)}:${item.url}`).join("|")],
+  () => {
+    if (currentModule.value === "images") {
+      void loadImagePreviews();
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   loadStoredNhostSettings();
@@ -991,6 +1002,72 @@ async function uploadFileToNhostStorage(file: File) {
     method: "POST",
     body: form
   });
+}
+
+function mediaItemKey(item: MediaItem) {
+  return item.id || item.url || item.name;
+}
+
+function mediaDisplayUrl(item: MediaItem) {
+  return mediaPreviewUrls[mediaItemKey(item)] || item.url;
+}
+
+async function fetchMediaPreviewUrl(item: MediaItem, fallbackContentType = "application/octet-stream") {
+  const key = mediaItemKey(item);
+  if (mediaPreviewUrls[key]) return mediaPreviewUrls[key];
+
+  const conn = getNhostConnection();
+  const result = await $fetch<{ ok: boolean; contentType: string; data: string }>("/api/nhost/file", {
+    method: "POST",
+    body: {
+      url: item.url,
+      ...conn
+    }
+  });
+
+  const previewUrl = `data:${result.contentType || fallbackContentType};base64,${result.data}`;
+  mediaPreviewUrls[key] = previewUrl;
+  return previewUrl;
+}
+
+async function openDocumentPreview(item: MediaItem) {
+  if (!import.meta.client || !item.url) return;
+  const previewWindow = window.open("", "_blank");
+  if (previewWindow) previewWindow.opener = null;
+
+  try {
+    const previewUrl = await fetchMediaPreviewUrl(item);
+    if (previewWindow) {
+      previewWindow.location.href = previewUrl;
+    } else {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    }
+  } catch (error) {
+    if (previewWindow) {
+      previewWindow.location.href = item.url;
+    } else {
+      window.open(item.url, "_blank", "noopener,noreferrer");
+    }
+    showCsvToast(`文件預覽失敗，已改開原始連結：${error instanceof Error ? error.message : "無法載入文件"}`, true);
+  }
+}
+
+async function loadImagePreviews() {
+  if (!import.meta.client) return;
+  const imageItems = activeMediaItems.value.filter((item) => item.url);
+
+  await Promise.all(
+    imageItems.map(async (item) => {
+      const key = mediaItemKey(item);
+      if (mediaPreviewUrls[key]) return;
+
+      try {
+        mediaPreviewUrls[key] = await fetchMediaPreviewUrl(item, "image/*");
+      } catch {
+        mediaPreviewUrls[key] = item.url;
+      }
+    })
+  );
 }
 
 function startEditBank(row: Bank) {
@@ -1937,16 +2014,17 @@ function csvCell(value: unknown) {
           </form>
         </section>
         <article v-for="item in activeMediaItems" :key="`${item.name}-${item.url}`" class="media-tile">
-          <img v-if="currentModule === 'images' && item.url" class="media-preview" :src="item.url" :alt="item.name" loading="lazy" />
+          <img v-if="currentModule === 'images' && item.url" class="media-preview" :src="mediaDisplayUrl(item)" :alt="item.name" loading="lazy" />
           <video v-else-if="currentModule === 'videos' && item.url" class="media-preview" :src="item.url" controls preload="metadata" />
           <audio v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url" class="media-audio" :src="item.url" controls />
-          <a v-else-if="currentModule === 'documents' && item.url" class="media-file-link" :href="item.url" target="_blank" rel="noreferrer">
+          <button v-else-if="currentModule === 'documents' && item.url" class="media-file-link" type="button" @click="openDocumentPreview(item)">
             <BookOpenText :size="24" />開啟文件
-          </a>
+          </button>
           <component v-else :is="activeMediaIcon" :size="28" />
           <strong>{{ item.name }}</strong>
           <span>{{ item.note || statusLabel }}</span>
-          <a v-if="item.url" class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟</a>
+          <button v-if="currentModule === 'documents' && item.url" class="text-action" type="button" @click="openDocumentPreview(item)">預覽</button>
+          <a v-else-if="item.url" class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟</a>
           <button class="text-action danger" type="button" @click="confirmDeleteMediaItem(item.name)">刪除</button>
         </article>
       </section>

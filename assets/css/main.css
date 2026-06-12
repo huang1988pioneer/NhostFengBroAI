@@ -710,12 +710,20 @@ input.editing {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  width: 100%;
   min-height: 120px;
+  border: 0;
   border-radius: 16px;
   background: rgba(31, 42, 35, 0.08);
   color: var(--text);
+  cursor: pointer;
   font-weight: 800;
+  font: inherit;
   text-decoration: none;
+}
+
+.media-file-link:hover {
+  background: rgba(31, 42, 35, 0.12);
 }
 
 .routine-card div {
