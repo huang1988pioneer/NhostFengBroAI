@@ -149,7 +149,7 @@ const query = ref("");
 const activeTool = ref("price-compare");
 const dataSource = ref<"loading" | "nhost" | "fallback" | "error" | "empty">("loading");
 const nhostError = ref("");
-const sourceMessage = ref("甇???? Nhost GraphQL...");
+const sourceMessage = ref("正在載入 Nhost GraphQL...");
 const loadedTables = ref<string[]>([]);
 const resolvedTableNames = ref<Record<string, string>>({});
 const tableSql = createNhostTablesSql;
@@ -217,66 +217,66 @@ const quickForm = reactive<QuickForm>({
 const crudConfigs: CrudConfig[] = [
   {
     table: "subscription",
-    label: "??閮",
+    label: "訂閱",
     filename: "appwrite-subscription.csv",
     fields: [
-      { key: "name", label: "?迂" },
-      { key: "site", label: "蝬脩?" },
-      { key: "price", label: "?寞", type: "number" },
-      { key: "nextdate", label: "銝活?交?", type: "date" },
-      { key: "note", label: "?酉" },
-      { key: "account", label: "撣唾?" },
-      { key: "currency", label: "撟?" },
-      { key: "continue", label: "??", type: "boolean" }
+      { key: "name", label: "名稱" },
+      { key: "site", label: "網站" },
+      { key: "price", label: "費用", type: "number" },
+      { key: "nextdate", label: "下次日期", type: "date" },
+      { key: "note", label: "備註" },
+      { key: "account", label: "帳號" },
+      { key: "currency", label: "幣別" },
+      { key: "continue", label: "續訂", type: "boolean" }
     ]
   },
   {
     table: "food",
-    label: "??憌?",
+    label: "食品",
     filename: "appwrite-food.csv",
     fields: [
-      { key: "name", label: "?迂" },
-      { key: "amount", label: "?賊?", type: "number" },
-      { key: "todate", label: "靽???", type: "date" },
-      { key: "photo", label: "?抒?" },
-      { key: "price", label: "?寞", type: "number" },
-      { key: "shop", label: "??" }
+      { key: "name", label: "名稱" },
+      { key: "amount", label: "數量", type: "number" },
+      { key: "todate", label: "保存期限", type: "date" },
+      { key: "photo", label: "圖片" },
+      { key: "price", label: "費用", type: "number" },
+      { key: "shop", label: "商店" }
     ]
   },
   {
     table: "article",
-    label: "??蝑?",
+    label: "筆記",
     filename: "appwrite-article.csv",
     fields: [
-      { key: "title", label: "璅?" },
-      { key: "content", label: "?批捆" },
-      { key: "category", label: "??" },
-      { key: "newDate", label: "?交?", type: "date" }
+      { key: "title", label: "標題" },
+      { key: "content", label: "內容" },
+      { key: "category", label: "分類" },
+      { key: "newDate", label: "日期", type: "date" }
     ]
   },
   {
     table: "commonaccount",
-    label: "??撣貊",
+    label: "常用帳號",
     filename: "appwrite-commonaccount.csv",
     fields: [
-      { key: "name", label: "撣唾?" },
+      { key: "name", label: "帳號" },
       { key: "sites", label: "蝡 JSON", type: "json" },
-      { key: "note", label: "?酉" }
+      { key: "note", label: "備註" }
     ]
   },
   {
     table: "image",
-    label: "????",
+    label: "圖片",
     filename: "appwrite-image.csv",
     fields: [
-      { key: "name", label: "?迂" },
+      { key: "name", label: "名稱" },
       { key: "url", label: "URL" },
-      { key: "note", label: "?酉" }
+      { key: "note", label: "備註" }
     ]
   },
   {
     table: "video",
-    label: "??敶梁?",
+    label: "影片",
     filename: "appwrite-video.csv",
     fields: [
       { key: "name", label: "名稱" },
@@ -1697,13 +1697,13 @@ function csvCell(value: unknown) {
 
       <div class="sidebar-note">
         <WalletCards :size="20" />
-        <span>{{ statusLabel }}嚗{ sourceMessage }}</span>
+        <span>{{ statusLabel }}：{{ sourceMessage }}</span>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <button class="icon-button mobile-only" type="button" aria-label="???詨" @click="isSidebarOpen = !isSidebarOpen">
+        <button class="icon-button mobile-only" type="button" aria-label="切換選單" @click="isSidebarOpen = !isSidebarOpen">
           <X v-if="isSidebarOpen" :size="19" />
           <Menu v-else :size="19" />
         </button>
@@ -1714,7 +1714,7 @@ function csvCell(value: unknown) {
         <label class="search-box">
           <Search :size="18" />
           <input v-model="query" type="search" placeholder="搜尋訂閱、食品、帳號、筆記、銀行、例行" />
-          <button v-if="query" class="clear-search" type="button" aria-label="皜??" @click="query = ''">
+          <button v-if="query" class="clear-search" type="button" aria-label="清除搜尋" @click="query = ''">
             <X :size="15" />
           </button>
         </label>
@@ -1744,7 +1744,7 @@ function csvCell(value: unknown) {
               可先在設定頁完成連線，再用各模組新增、匯入與檢視資料。
             </p>
           </div>
-          <div class="hero-stack" aria-label="鞈???">
+          <div class="hero-stack" aria-label="資料概況">
             <span>{{ statusLabel }}</span>
             <span>{{ subscriptions.length }} 筆訂閱</span>
             <span>{{ foods.length }} 筆食品</span>
@@ -1753,16 +1753,16 @@ function csvCell(value: unknown) {
         </div>
 
         <div class="stats-grid">
-          <article class="stat-card"><CreditCard /><span>??閮</span><strong>{{ recurringSubscriptions }}</strong></article>
-          <article class="stat-card"><CircleDollarSign /><span>TWD 閮?臬</span><strong>{{ money(totalTwdSubscriptions) }}</strong></article>
-          <article class="stat-card"><Utensils /><span>憌?摨怠??賊?</span><strong>{{ foodUnits }}</strong></article>
-          <article class="stat-card"><Landmark /><span>?銵蜇擗?</span><strong>{{ money(totalBankDeposit) }}</strong></article>
+          <article class="stat-card"><CreditCard /><span>續訂訂閱</span><strong>{{ recurringSubscriptions }}</strong></article>
+          <article class="stat-card"><CircleDollarSign /><span>TWD 訂閱支出</span><strong>{{ money(totalTwdSubscriptions) }}</strong></article>
+          <article class="stat-card"><Utensils /><span>食品庫存數量</span><strong>{{ foodUnits }}</strong></article>
+          <article class="stat-card"><Landmark /><span>銀行總存款</span><strong>{{ money(totalBankDeposit) }}</strong></article>
         </div>
 
         <section class="panel wide">
           <div class="section-heading">
-            <h3>餈?閮</h3>
-            <button type="button" @click="navigate('subscription')">?亦?閮</button>
+            <h3>近期訂閱</h3>
+            <button type="button" @click="navigate('subscription')">前往訂閱</button>
           </div>
           <div class="timeline">
             <article v-for="item in sortedSubscriptions.slice(0, 8)" :key="`${item.name}-${item.nextdate}`">
@@ -1772,10 +1772,10 @@ function csvCell(value: unknown) {
             </article>
           </div>
           <form class="quick-form" @submit.prevent="addCommonAccount">
-            <input v-model="quickForm.commonName" placeholder="撣唾? / ?迂" />
-            <input v-model="quickForm.commonSite" placeholder="蝡 / ??" />
-            <input v-model="quickForm.commonNote" placeholder="?酉" />
-            <button type="submit">?啣?撣貊</button>
+            <input v-model="quickForm.commonName" placeholder="帳號 / 名稱" />
+            <input v-model="quickForm.commonSite" placeholder="網站 / 連結" />
+            <input v-model="quickForm.commonNote" placeholder="備註" />
+            <button type="submit">新增常用帳號</button>
           </form>
         </section>
 
@@ -1796,21 +1796,21 @@ function csvCell(value: unknown) {
       <section v-else-if="currentModule === 'subscription'" class="module-grid">
         <section class="panel wide">
           <div class="section-heading">
-            <h3>?啣?閮</h3>
+            <h3>新增訂閱</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportSubscriptions(subscriptions)"><Download :size="15" />?臬 CSV</button>
-              <label class="csv-btn import" :class="{ loading: csvImporting === '閮' }">
-                <Upload :size="15" />{{ csvImporting === '閮' ? '?臬銝?..' : '?臬 CSV' }}
+              <button class="csv-btn export" type="button" @click="exportSubscriptions(subscriptions)"><Download :size="15" />匯出 CSV</button>
+              <label class="csv-btn import" :class="{ loading: csvImporting === '訂閱' }">
+                <Upload :size="15" />{{ csvImporting === "訂閱" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importSubCsv" />
               </label>
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addSubscription">
-            <input v-model="quickForm.subscriptionName" placeholder="?迂" :class="{ editing: editingSubId }" />
+            <input v-model="quickForm.subscriptionName" placeholder="名稱" :class="{ editing: editingSubId }" />
             <input v-model="quickForm.subscriptionDate" type="date" />
-            <input v-model.number="quickForm.subscriptionPrice" min="0" type="number" placeholder="?寞" />
-            <button type="submit" :disabled="submitting">{{ submitting ? '??銝?..' : (editingSubId ? '?湔閮' : '?啣?') }}</button>
-            <button v-if="editingSubId" type="button" class="cancel-btn" @click="cancelEditSub">??</button>
+            <input v-model.number="quickForm.subscriptionPrice" min="0" type="number" placeholder="費用" />
+            <button type="submit" :disabled="submitting">{{ submitting ? "儲存中..." : (editingSubId ? "更新訂閱" : "新增") }}</button>
+            <button v-if="editingSubId" type="button" class="cancel-btn" @click="cancelEditSub">取消</button>
           </form>
         </section>
         <section class="panel wide">
@@ -1826,7 +1826,7 @@ function csvCell(value: unknown) {
           </div>
           <DataTable v-else :rows="filteredSubscriptions" :columns="['名稱', '費用', '幣別', '下次日期', '帳號', '狀態']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">蝺刻摩</button><button class="text-action danger" type="button" @click="confirmDeleteSubscription(row.name)">?芷</button></div></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><small>{{ row.note }}</small><div class="row-btn-group"><button class="text-action" type="button" @click="startEditSub(row)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteSubscription(row.name)">刪除</button></div></td>
               <td>{{ money(row.price, row.currency) }}</td>
               <td>{{ row.currency }}</td>
               <td>{{ row.nextdate }}<small>{{ daysUntil(row.nextdate) }}</small></td>
@@ -1840,26 +1840,26 @@ function csvCell(value: unknown) {
       <section v-else-if="currentModule === 'food'" class="module-grid">
         <section class="panel wide">
           <div class="section-heading">
-            <h3>?啣?憌?摨怠?</h3>
+            <h3>新增食品庫存</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportFoods(foods)"><Download :size="15" />?臬 CSV</button>
-              <label class="csv-btn import" :class="{ loading: csvImporting === '憌?' }">
-                <Upload :size="15" />{{ csvImporting === '憌?' ? '?臬銝?..' : '?臬 CSV' }}
+              <button class="csv-btn export" type="button" @click="exportFoods(foods)"><Download :size="15" />匯出 CSV</button>
+              <label class="csv-btn import" :class="{ loading: csvImporting === '食品' }">
+                <Upload :size="15" />{{ csvImporting === "食品" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importFoodCsv" />
               </label>
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addFood">
-            <input v-model="quickForm.foodName" placeholder="??" :class="{ editing: editingFoodId }" />
-            <input v-model.number="quickForm.foodAmount" min="1" type="number" placeholder="?賊?" />
+            <input v-model="quickForm.foodName" placeholder="名稱" :class="{ editing: editingFoodId }" />
+            <input v-model.number="quickForm.foodAmount" min="1" type="number" placeholder="數量" />
             <input v-model="quickForm.foodDate" type="date" />
-            <input v-model="quickForm.foodPhoto" placeholder="?? URL" />
+            <input v-model="quickForm.foodPhoto" placeholder="圖片 URL" />
             <button type="button" class="secondary-btn" :disabled="isFoodPhotoUploading" @click="foodPhotoInput?.click()">
-              <Upload :size="15" />{{ isFoodPhotoUploading ? "銝銝?.." : "銝??" }}
+              <Upload :size="15" />{{ isFoodPhotoUploading ? "上傳中..." : "上傳圖片" }}
             </button>
             <input ref="foodPhotoInput" class="hidden-input" type="file" accept="image/*" @change="uploadFoodPhoto" />
-            <button type="submit">{{ editingFoodId ? '?湔憌?' : '?啣?' }}</button>
-            <button v-if="editingFoodId" type="button" class="cancel-btn" @click="cancelEditFood">??</button>
+            <button type="submit">{{ editingFoodId ? "更新食品" : "新增" }}</button>
+            <button v-if="editingFoodId" type="button" class="cancel-btn" @click="cancelEditFood">取消</button>
           </form>
         </section>
         <article v-for="item in filteredFoods" :key="`${item.name}-${item.todate}`" class="media-card">
@@ -1867,8 +1867,8 @@ function csvCell(value: unknown) {
           <div v-else class="image-fallback"><Package :size="28" /></div>
           <div>
             <strong>{{ item.name }}</strong>
-            <span>?賊? {{ item.amount }} / ?唳? {{ item.todate }} / {{ daysUntil(item.todate) }}</span>
-            <div class="row-btn-group"><button class="text-action" type="button" @click="startEditFood(item)">蝺刻摩</button><button class="text-action danger" type="button" @click="confirmDeleteFood(item.name)">?芷</button></div>
+            <span>數量 {{ item.amount }} / 到期 {{ item.todate }} / {{ daysUntil(item.todate) }}</span>
+            <div class="row-btn-group"><button class="text-action" type="button" @click="startEditFood(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteFood(item.name)">刪除</button></div>
           </div>
         </article>
       </section>
@@ -1876,38 +1876,38 @@ function csvCell(value: unknown) {
       <section v-else-if="currentModule === 'notes'" class="module-grid">
         <section class="panel wide">
           <div class="section-heading">
-            <h3>?啣?蝑?</h3>
+            <h3>新增筆記</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportArticles(articles)"><Download :size="15" />?臬 CSV</button>
-              <label class="csv-btn import" :class="{ loading: csvImporting === '蝑?' }">
-                <Upload :size="15" />{{ csvImporting === '蝑?' ? '?臬銝?..' : '?臬 CSV' }}
+              <button class="csv-btn export" type="button" @click="exportArticles(articles)"><Download :size="15" />匯出 CSV</button>
+              <label class="csv-btn import" :class="{ loading: csvImporting === '筆記' }">
+                <Upload :size="15" />{{ csvImporting === "筆記" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importNoteCsv" />
               </label>
             </div>
           </div>
           <form class="quick-form note-form" @submit.prevent="addNote">
-            <input v-model="quickForm.noteTitle" placeholder="璅?" :class="{ editing: editingNoteId }" />
-            <textarea v-model="quickForm.noteContent" placeholder="?批捆" />
-            <button type="submit">{{ editingNoteId ? '?湔蝑?' : '?啣?' }}</button>
-            <button v-if="editingNoteId" type="button" class="cancel-btn" @click="cancelEditNote">??</button>
+            <input v-model="quickForm.noteTitle" placeholder="標題" :class="{ editing: editingNoteId }" />
+            <textarea v-model="quickForm.noteContent" placeholder="內容" />
+            <button type="submit">{{ editingNoteId ? "更新筆記" : "新增" }}</button>
+            <button v-if="editingNoteId" type="button" class="cancel-btn" @click="cancelEditNote">取消</button>
           </form>
         </section>
         <article v-for="item in filteredArticles" :key="`${item.title}-${item.newDate}`" class="note-card">
           <small>{{ item.category || "未分類" }} / {{ item.newDate }}</small>
           <h3>{{ item.title }}</h3>
           <p>{{ item.content }}</p>
-          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditNote(item)">蝺刻摩</button><button class="text-action danger" type="button" @click="confirmDeleteArticle(item.title)">?芷</button></div>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditNote(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteArticle(item.title)">刪除</button></div>
         </article>
       </section>
 
       <section v-else-if="currentModule === 'common'" class="module-grid">
         <section class="panel wide">
           <div class="section-heading">
-            <h3>撣貊撣唾?</h3>
+            <h3>常用帳號</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportCommonAccounts(commonAccounts)"><Download :size="15" />?臬 CSV</button>
-              <label class="csv-btn import" :class="{ loading: csvImporting === '撣貊撣唾?' }">
-                <Upload :size="15" />{{ csvImporting === '撣貊撣唾?' ? '?臬銝?..' : '?臬 CSV' }}
+              <button class="csv-btn export" type="button" @click="exportCommonAccounts(commonAccounts)"><Download :size="15" />匯出 CSV</button>
+              <label class="csv-btn import" :class="{ loading: csvImporting === '常用帳號' }">
+                <Upload :size="15" />{{ csvImporting === "常用帳號" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importCommonCsv" />
               </label>
             </div>
@@ -1918,22 +1918,22 @@ function csvCell(value: unknown) {
           <div class="chip-row">
             <span v-for="entry in account.sites" :key="`${account.name}-${entry.site}`" class="chip">{{ entry.site }}<small v-if="entry.note">{{ entry.note }}</small></span>
           </div>
-          <button class="text-action danger" type="button" @click="confirmDeleteCommonAccount(account.name)">?芷</button>
+          <button class="text-action danger" type="button" @click="confirmDeleteCommonAccount(account.name)">刪除</button>
         </article>
       </section>
 
       <section v-else-if="['images', 'videos', 'music', 'documents', 'podcast'].includes(currentModule)" class="module-grid">
         <section class="panel wide">
-          <div class="section-heading"><h3>?啣?慦?鞈?</h3></div>
+          <div class="section-heading"><h3>新增媒體資料</h3></div>
           <form class="quick-form" @submit.prevent="addMediaItem">
-            <input v-model="quickForm.mediaName" placeholder="?迂" />
-            <input v-model="quickForm.mediaUrl" placeholder="??? / Storage URL" />
-            <input v-model="quickForm.mediaNote" placeholder="?酉" />
+            <input v-model="quickForm.mediaName" placeholder="名稱" />
+            <input v-model="quickForm.mediaUrl" placeholder="連結 / Storage URL" />
+            <input v-model="quickForm.mediaNote" placeholder="備註" />
             <button type="button" class="secondary-btn" :disabled="isMediaUploading" @click="mediaUploadInput?.click()">
               <Upload :size="15" />{{ isMediaUploading ? "上傳中..." : activeMediaUploadLabel }}
             </button>
             <input ref="mediaUploadInput" class="hidden-input" type="file" :accept="activeMediaAccept" @change="uploadMediaFile" />
-            <button type="submit">?啣?</button>
+            <button type="submit">新增</button>
           </form>
         </section>
         <article v-for="item in activeMediaItems" :key="`${item.name}-${item.url}`" class="media-tile">
@@ -1956,7 +1956,7 @@ function csvCell(value: unknown) {
           <div class="section-heading">
             <h3>新增銀行</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportBanks(banks)"><Download :size="15" />?臬 CSV</button>
+              <button class="csv-btn export" type="button" @click="exportBanks(banks)"><Download :size="15" />匯出 CSV</button>
               <label class="csv-btn import" :class="{ loading: csvImporting === '銀行' }">
                 <Upload :size="15" />{{ csvImporting === "銀行" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importBankCsv" />
@@ -1964,16 +1964,16 @@ function csvCell(value: unknown) {
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addBank">
-            <input v-model="quickForm.bankName" placeholder="?銵?/ ?餃?蟡刻??迂" :class="{ editing: editingBankId }" />
-            <input v-model.number="quickForm.bankDeposit" min="0" type="number" placeholder="擗?" />
-            <input v-model="quickForm.bankAccount" placeholder="撣唾?" />
-            <input v-model="quickForm.bankCard" placeholder="?∠? / ?餃?蟡刻?" />
+            <input v-model="quickForm.bankName" placeholder="銀行 / 卡片名稱" :class="{ editing: editingBankId }" />
+            <input v-model.number="quickForm.bankDeposit" min="0" type="number" placeholder="存款" />
+            <input v-model="quickForm.bankAccount" placeholder="帳號" />
+            <input v-model="quickForm.bankCard" placeholder="卡片 / 金融卡" />
             <button type="submit">{{ editingBankId ? "更新銀行" : "新增銀行" }}</button>
-            <button v-if="editingBankId" type="button" class="cancel-btn" @click="cancelEditBank">??</button>
+            <button v-if="editingBankId" type="button" class="cancel-btn" @click="cancelEditBank">取消</button>
           </form>
           <DataTable :rows="filteredBanks" :columns="['名稱', '存款', '提款', '轉帳', '卡片', '帳號']">
             <template #default="{ row }">
-              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><div class="row-btn-group"><button class="text-action" type="button" @click="startEditBank(row)">蝺刻摩</button><button class="text-action danger" type="button" @click="confirmDeleteBank(row.name)">?芷</button></div></td>
+              <td><a v-if="row.site" :href="row.site" target="_blank">{{ row.name }}</a><span v-else>{{ row.name }}</span><div class="row-btn-group"><button class="text-action" type="button" @click="startEditBank(row)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteBank(row.name)">刪除</button></div></td>
               <td>{{ money(row.deposit) }}</td>
               <td>{{ row.withdrawals }}</td>
               <td>{{ row.transfer }}</td>
@@ -1987,20 +1987,20 @@ function csvCell(value: unknown) {
       <section v-else-if="currentModule === 'routine'" class="module-grid">
         <section class="panel wide">
           <div class="section-heading">
-            <h3>?啣?靘?鈭?</h3>
+            <h3>新增例行事項</h3>
             <div class="csv-actions">
-              <button class="csv-btn export" type="button" @click="exportRoutines(routines)"><Download :size="15" />?臬 CSV</button>
-              <label class="csv-btn import" :class="{ loading: csvImporting === '靘?鈭?' }">
-                <Upload :size="15" />{{ csvImporting === '靘?鈭?' ? '?臬銝?..' : '?臬 CSV' }}
+              <button class="csv-btn export" type="button" @click="exportRoutines(routines)"><Download :size="15" />匯出 CSV</button>
+              <label class="csv-btn import" :class="{ loading: csvImporting === '例行事項' }">
+                <Upload :size="15" />{{ csvImporting === "例行事項" ? "匯入中..." : "匯入 CSV" }}
                 <input class="csv-hidden-input" type="file" accept=".csv" @change="importRoutineCsv" />
               </label>
             </div>
           </div>
           <form class="quick-form" @submit.prevent="addRoutine">
-            <input v-model="quickForm.routineName" placeholder="?迂" :class="{ editing: editingRoutineId }" />
+            <input v-model="quickForm.routineName" placeholder="名稱" :class="{ editing: editingRoutineId }" />
             <input v-model="quickForm.routineDate" type="date" />
-            <input v-model="quickForm.routineNote" placeholder="?酉" />
-            <input v-model="quickForm.routinePhoto" placeholder="?? URL" />
+            <input v-model="quickForm.routineNote" placeholder="備註" />
+            <input v-model="quickForm.routinePhoto" placeholder="圖片 URL" />
             <button type="button" class="secondary-btn" :disabled="isRoutinePhotoUploading" @click="routinePhotoInput?.click()">
               <Upload :size="15" />{{ isRoutinePhotoUploading ? "上傳中..." : "上傳圖片" }}
             </button>
@@ -2016,22 +2016,22 @@ function csvCell(value: unknown) {
           </div>
           <p>{{ item.note || "無備註" }}</p>
           <a v-if="item.link" :href="item.link" target="_blank">開啟連結</a>
-          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditRoutine(item)">蝺刻摩</button><button class="text-action danger" type="button" @click="confirmDeleteRoutine(item.name)">?芷</button></div>
+          <div class="row-btn-group"><button class="text-action" type="button" @click="startEditRoutine(item)">編輯</button><button class="text-action danger" type="button" @click="confirmDeleteRoutine(item.name)">刪除</button></div>
         </article>
       </section>
 
       <section v-else-if="['tools', 'price-compare', 'phone-compare', 'fengbro-tube', 'fengbro-finance'].includes(currentModule)" class="module-grid">
         <section class="panel wide">
           <div class="tabs" role="tablist">
-            <button :class="{ active: activeTool === 'price-compare' }" type="button" @click="activeTool = 'price-compare'; currentModule = 'price-compare'">?寞瘥?</button>
-            <button :class="{ active: activeTool === 'phone-compare' }" type="button" @click="activeTool = 'phone-compare'; currentModule = 'phone-compare'">??瘥?</button>
+            <button :class="{ active: activeTool === 'price-compare' }" type="button" @click="activeTool = 'price-compare'; currentModule = 'price-compare'">價格比較</button>
+            <button :class="{ active: activeTool === 'phone-compare' }" type="button" @click="activeTool = 'phone-compare'; currentModule = 'phone-compare'">手機比較</button>
             <button :class="{ active: activeTool === 'fengbro-tube' }" type="button" @click="activeTool = 'fengbro-tube'; currentModule = 'fengbro-tube'">FengBro Tube</button>
-            <button :class="{ active: activeTool === 'fengbro-finance' }" type="button" @click="activeTool = 'fengbro-finance'; currentModule = 'fengbro-finance'">??餈質馱</button>
+            <button :class="{ active: activeTool === 'fengbro-finance' }" type="button" @click="activeTool = 'fengbro-finance'; currentModule = 'fengbro-finance'">金融追蹤</button>
           </div>
         </section>
 
         <template v-if="activeTool === 'price-compare'">
-          <article v-for="item in articles.filter((article) => article.category.includes('?寞'))" :key="item.title" class="note-card">
+          <article v-for="item in articles.filter((article) => article.category.includes('價格'))" :key="item.title" class="note-card">
             <small>{{ item.newDate }}</small>
             <h3>{{ item.title }}</h3>
             <p>{{ item.content }}</p>
@@ -2079,10 +2079,10 @@ function csvCell(value: unknown) {
                   v-model="nhostSettings.adminSecret"
                   :type="isSecretVisible ? 'text' : 'password'"
                   autocomplete="off"
-                  placeholder="?冽?? Table ????靽風鞈?"
+                  placeholder="請輸入 Hasura Admin Secret"
                 />
                 <button type="button" @click="isSecretVisible = !isSecretVisible">
-                  {{ isSecretVisible ? "?梯?" : "憿舐內" }}
+                  {{ isSecretVisible ? "隱藏" : "顯示" }}
                 </button>
               </div>
             </label>
@@ -2161,7 +2161,7 @@ function csvCell(value: unknown) {
             <table>
               <thead>
                 <tr>
-                  <th>??</th>
+                  <th>操作</th>
                   <th v-for="field in activeCrudConfig.fields" :key="field.key">{{ field.label }}</th>
                 </tr>
               </thead>
@@ -2192,9 +2192,9 @@ function csvCell(value: unknown) {
             </div>
             <div class="button-row">
               <button type="button" @click="copyTableSql">銴ˊ SQL</button>
-              <button type="button" @click="downloadTableSql">銝? SQL</button>
+              <button type="button" @click="downloadTableSql">下載 SQL</button>
               <button type="button" :disabled="isGeneratingTables" @click="generateTables">
-                {{ isGeneratingTables ? "??銝?.." : "?? / Track / ?臬" }}
+                {{ isGeneratingTables ? "建立中..." : "建立 / Track / 匯入" }}
               </button>
             </div>
           </div>
@@ -2211,13 +2211,13 @@ function csvCell(value: unknown) {
 
       <section v-else-if="currentModule === 'about'" class="module-grid">
         <article class="panel wide about-panel">
-          <h3>?</h3>
+          <h3>關於</h3>
           <p>
-            NhostFengBroAI ?舫??犖鞈?撌乩??啁? Nuxt ??迨?撌脫??Nhost-first嚗?
-            蝟餌絞?? server proxy ?? Nhost GraphQL嚗??祕??Postgres/Hasura 鞈???
+            NhostFengBroAI 是鋒兄資料工作台，使用 Nuxt 建立並以 Nhost-first 方式讀寫資料。
+            系統透過 server proxy 連接 Nhost GraphQL，管理 Postgres/Hasura 資料。
           </p>
           <p>
-            ?桀????{{ sourceMessage }}
+            目前資料來源：{{ sourceMessage }}
           </p>
         </article>
       </section>
