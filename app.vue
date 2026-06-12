@@ -810,7 +810,8 @@ async function deleteMediaItem(name: string) {
 
 function resolvePlayableMediaUrl(item: MediaItem) {
   if (!item.url) return "";
-  if (currentModule.value !== "music" && currentModule.value !== "podcast") return item.url;
+  if (mediaPreviewUrls[mediaItemKey(item)]) return mediaPreviewUrls[mediaItemKey(item)];
+  if (currentModule.value !== "videos" && currentModule.value !== "music" && currentModule.value !== "podcast") return item.url;
 
   const storageFileId = extractNhostStorageFileId(item.url);
   if (!storageFileId) return item.url;
@@ -840,9 +841,10 @@ function clearMediaPlaybackError(item: MediaItem) {
 }
 
 function handleMediaPlaybackError(item: MediaItem) {
+  const mediaType = currentModule.value === "videos" ? "影片" : "音訊";
   mediaPlaybackErrors.value = {
     ...mediaPlaybackErrors.value,
-    [mediaItemKey(item)]: "音訊無法直接播放。請確認連結是 mp3、m4a、ogg、wav 或 Nhost Storage 檔案，且檔案可被目前網站讀取。"
+    [mediaItemKey(item)]: `${mediaType}無法播放。請確認檔案格式可被瀏覽器播放，且 Nhost Storage 代理可以讀取這個檔案。`
   };
 }
 
@@ -2160,7 +2162,16 @@ function csvCell(value: unknown) {
         </section>
         <article v-for="item in activeMediaItems" :key="`${item.name}-${item.url}`" class="media-tile">
           <img v-if="currentModule === 'images' && item.url" class="media-preview" :src="mediaDisplayUrl(item)" :alt="item.name" loading="lazy" />
-          <video v-else-if="currentModule === 'videos' && item.url" class="media-preview" :src="item.url" controls preload="metadata" />
+          <video
+            v-else-if="currentModule === 'videos' && item.url"
+            class="media-preview"
+            :src="resolvePlayableMediaUrl(item)"
+            controls
+            preload="metadata"
+            @error="handleMediaPlaybackError(item)"
+            @loadedmetadata="clearMediaPlaybackError(item)"
+            @canplay="clearMediaPlaybackError(item)"
+          />
           <audio
             v-else-if="(currentModule === 'music' || currentModule === 'podcast') && item.url"
             class="media-audio"

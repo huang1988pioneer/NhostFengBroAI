@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Missing Nhost GraphQL URL" });
   }
 
-  const fileUrl = `${deriveStorageFilesEndpoint(graphqlUrl)}/${encodeURIComponent(id)}`;
+  const fileUrls = buildStorageFileCandidates(graphqlUrl, id);
   const headers: Record<string, string> = {};
   const range = getHeader(event, "range");
   const adminSecret = config.nhostAdminSecret;
@@ -21,11 +21,19 @@ export default defineEventHandler(async (event) => {
   if (authorization) headers.Authorization = authorization;
   if (adminSecret) headers["x-hasura-admin-secret"] = String(adminSecret);
 
-  const response = await fetch(fileUrl, { headers });
-  if (!response.ok && response.status !== 206) {
+  let response: Response | null = null;
+  let lastStatus = 0;
+
+  for (const fileUrl of fileUrls) {
+    response = await fetch(fileUrl, { headers });
+    if (response.ok || response.status === 206) break;
+    lastStatus = response.status;
+  }
+
+  if (!response || (!response.ok && response.status !== 206)) {
     throw createError({
-      statusCode: response.status,
-      statusMessage: `Nhost Storage file request failed (${response.status})`
+      statusCode: lastStatus || 502,
+      statusMessage: `Nhost Storage file request failed (${lastStatus || "unknown"})`
     });
   }
 
@@ -37,6 +45,12 @@ export default defineEventHandler(async (event) => {
 
   return response.body;
 });
+
+function buildStorageFileCandidates(graphqlUrl: string, id: string) {
+  const encodedId = encodeURIComponent(id);
+  const fileEndpoint = `${deriveStorageFilesEndpoint(graphqlUrl)}/${encodedId}`;
+  return [`${fileEndpoint}/download`, `${fileEndpoint}/preview`, fileEndpoint];
+}
 
 function deriveStorageFilesEndpoint(graphqlUrl: string) {
   const url = new URL(graphqlUrl);
