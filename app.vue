@@ -1028,19 +1028,94 @@ async function uploadRoutinePhoto(event: Event) {
   }
 }
 
-async function uploadFileToNhostStorage(file: File) {
-  const form = new FormData();
-  const conn = getNhostConnection();
-  form.append("file", file);
-  form.append("bucketId", "default");
-  if (conn.graphqlUrl) form.append("graphqlUrl", conn.graphqlUrl);
-  if (conn.adminSecret) form.append("adminSecret", conn.adminSecret);
-  if (conn.authorization) form.append("authorization", conn.authorization);
+type NhostStorageUploadResponse = {
+  id?: string;
+  name?: string;
+  size?: number;
+  fileMetadata?: {
+    id?: string;
+    name?: string;
+    size?: number;
+  };
+};
 
-  return await $fetch<{ ok: boolean; name: string; url: string }>("/api/nhost/upload", {
-    method: "POST",
-    body: form
-  });
+type NhostStorageUploadResult = {
+  ok: boolean;
+  id?: string;
+  name: string;
+  size: number;
+  url: string;
+};
+
+async function uploadFileToNhostStorage(file: File) {
+  const conn = getNhostConnection();
+  if (!conn.graphqlUrl) {
+    throw new Error("請先在設定頁輸入 Nhost GraphQL URL。");
+  }
+
+  return await uploadFileDirectlyToNhost(file, conn);
+}
+
+async function uploadFileDirectlyToNhost(file: File, conn: NhostConnection): Promise<NhostStorageUploadResult> {
+  const form = new FormData();
+  const uploadEndpoint = deriveStorageFilesEndpoint(conn.graphqlUrl as string);
+  form.append("file[]", file);
+  form.append("bucket-id", "default");
+
+  const headers: Record<string, string> = {};
+  if (conn.authorization) headers.Authorization = conn.authorization;
+  if (conn.adminSecret) headers["x-hasura-admin-secret"] = conn.adminSecret;
+
+  try {
+    const response = await $fetch<NhostStorageUploadResponse | NhostStorageUploadResponse[]>(uploadEndpoint, {
+      method: "POST",
+      headers,
+      body: form
+    });
+    return normalizeStorageUploadResponse(response, uploadEndpoint, file);
+  } catch (error) {
+    throw error;
+  }
+}
+
+function deriveStorageFilesEndpoint(graphqlUrl: string) {
+  const url = new URL(graphqlUrl);
+  url.hostname = url.hostname.replace(".graphql.", ".storage.");
+  url.pathname = "/v1/files";
+  url.search = "";
+  return url.toString();
+}
+
+function normalizeStorageUploadResponse(response: NhostStorageUploadResponse | NhostStorageUploadResponse[], uploadEndpoint: string, file: File): NhostStorageUploadResult {
+  const uploaded = Array.isArray(response) ? response[0] : response;
+  const fileId = uploaded?.id || uploaded?.fileMetadata?.id;
+  const fileName = uploaded?.name || uploaded?.fileMetadata?.name || file.name;
+
+  return {
+    ok: true,
+    id: fileId,
+    name: fileName,
+    size: uploaded?.size ?? uploaded?.fileMetadata?.size ?? file.size,
+    url: fileId ? `${uploadEndpoint}/${fileId}` : uploadEndpoint
+  };
+}
+
+function formatStorageUploadError(error: unknown) {
+  if (error && typeof error === "object") {
+    const uploadError = error as {
+      data?: { statusMessage?: string; message?: string; error?: string; errors?: Array<{ message?: string }> };
+      status?: number;
+      statusCode?: number;
+      statusMessage?: string;
+      message?: string;
+    };
+    const messages = uploadError.data?.errors?.map((item) => item.message).filter(Boolean).join("; ");
+    const code = uploadError.statusCode || uploadError.status;
+    const detail = messages || uploadError.data?.statusMessage || uploadError.data?.message || uploadError.data?.error || uploadError.statusMessage || uploadError.message || "Nhost Storage 無法上傳";
+    return code ? `${detail} (${code})` : detail;
+  }
+
+  return String(error || "Nhost Storage 無法上傳");
 }
 
 function mediaItemKey(item: MediaItem) {
