@@ -2779,8 +2779,15 @@ function csvCell(value: unknown) {
       </section>
 
       <section v-else-if="['tools', 'price-compare', 'phone-compare', 'fengbro-tube', 'fengbro-finance'].includes(currentModule)" class="module-grid">
-        <section class="panel wide">
-          <div class="tabs" role="tablist">
+        <section class="tool-console">
+          <div class="tool-console-heading">
+            <div>
+              <p class="panel-kicker">Console View</p>
+              <h2>鋒兄工具</h2>
+              <p>工具模組集中入口與手機比價工作台。</p>
+            </div>
+          </div>
+          <div class="tabs tool-tabs" role="tablist">
             <button :class="{ active: activeTool === 'price-compare' }" type="button" @click="activeTool = 'price-compare'; currentModule = 'price-compare'">鋒兄比價</button>
             <button :class="{ active: activeTool === 'phone-compare' }" type="button" @click="activeTool = 'phone-compare'; currentModule = 'phone-compare'">手機比價</button>
             <button :class="{ active: activeTool === 'fengbro-tube' }" type="button" @click="activeTool = 'fengbro-tube'; currentModule = 'fengbro-tube'">鋒兄Tube</button>
@@ -2789,8 +2796,9 @@ function csvCell(value: unknown) {
         </section>
 
         <template v-if="activeTool === 'price-compare'">
-          <section class="panel wide">
-            <div class="section-heading">
+          <section class="tool-workbench tool-workbench-price">
+            <div class="tool-workbench-heading">
+              <div class="tool-icon"><Wrench :size="20" /></div>
               <div>
                 <h3>鋒兄比價</h3>
                 <p class="section-note">輸入商品網址或關鍵字，查詢 BigGo 搜尋價格與價格區間。</p>
@@ -2801,9 +2809,13 @@ function csvCell(value: unknown) {
               <input v-model="priceCompareInput" placeholder="商品網址或關鍵字，例如 iPhone 16 Pro 256G" />
               <button type="submit" :disabled="isPriceCompareLoading"><Search :size="15" />查詢價格</button>
             </form>
+            <div class="tool-source-grid">
+              <div class="tool-source-card active"><strong>BigGo API</strong><span>查詢 BigGo 歷史價格資料</span></div>
+              <div class="tool-source-card"><strong>本地估值</strong><span>外部查詢失敗時保留來源連結</span></div>
+            </div>
             <p v-if="priceCompareStatus" class="status-message">{{ priceCompareStatus }}</p>
           </section>
-          <article v-if="priceCompareResult" class="tool-card wide-tool-card">
+          <article v-if="priceCompareResult" class="tool-result-card wide-tool-card">
             <TrendingUp />
             <strong>{{ priceCompareResult.productTitle }}</strong>
             <span>BigGo 關鍵字：{{ priceCompareResult.keyword }}</span>
@@ -2820,8 +2832,9 @@ function csvCell(value: unknown) {
           <article v-else class="tool-card"><TrendingUp /><strong>輸入商品即可開始比價</strong><span>支援網址解析與關鍵字搜尋。</span></article>
         </template>
         <template v-else-if="activeTool === 'phone-compare'">
-          <section class="panel wide">
-            <div class="section-heading">
+          <section class="tool-workbench tool-workbench-phone">
+            <div class="tool-workbench-heading">
+              <div class="tool-icon blue"><Boxes :size="20" /></div>
               <div>
                 <h3>手機比價</h3>
                 <p class="section-note">比對地標網通與傑昇通信，列出可解析的最低價格。</p>
@@ -2834,7 +2847,7 @@ function csvCell(value: unknown) {
             </form>
             <p v-if="phoneCompareStatus" class="status-message">{{ phoneCompareStatus }}</p>
           </section>
-          <article v-for="item in phoneCompareResult?.comparison || []" :key="item.label" class="tool-card">
+          <article v-for="item in phoneCompareResult?.comparison || []" :key="item.label" class="tool-result-card">
             <Boxes />
             <strong>{{ item.displayName }}</strong>
             <span>{{ item.label }}</span>
@@ -2855,8 +2868,9 @@ function csvCell(value: unknown) {
           <article v-if="phoneCompareResult && !phoneCompareResult.comparison.length" class="tool-card"><AlertCircle /><strong>暫時沒有可解析價格</strong><span>可開啟來源網站手動查看。</span></article>
         </template>
         <template v-else-if="activeTool === 'fengbro-tube'">
-          <section class="panel wide">
-            <div class="section-heading">
+          <section class="tool-workbench tool-workbench-tube">
+            <div class="tool-workbench-heading">
+              <div class="tool-icon red"><Play :size="20" /></div>
               <div>
                 <h3>鋒兄Tube</h3>
                 <p class="section-note">讀取鋒兄常用 YouTube 頻道 RSS，集中瀏覽近期影片。</p>
@@ -2865,7 +2879,7 @@ function csvCell(value: unknown) {
             </div>
             <p v-if="tubeStatus" class="status-message">{{ tubeStatus }}</p>
           </section>
-          <article v-for="video in tubeResult?.recentVideos || []" :key="video.id" class="tool-card video-tool-card">
+          <article v-for="video in tubeResult?.recentVideos || []" :key="video.id" class="tool-result-card video-tool-card">
             <img v-if="video.thumbnail" :src="video.thumbnail" :alt="video.title" loading="lazy" />
             <Play v-else />
             <strong>{{ video.title }}</strong>
@@ -2875,8 +2889,9 @@ function csvCell(value: unknown) {
           <article v-if="!tubeResult" class="tool-card"><Play /><strong>載入鋒兄Tube</strong><span>按下重新載入取得近期影片。</span></article>
         </template>
         <template v-else>
-          <section class="panel wide">
-            <div class="section-heading">
+          <section class="tool-workbench tool-workbench-finance">
+            <div class="tool-workbench-heading">
+              <div class="tool-icon green"><CircleDollarSign :size="20" /></div>
               <div>
                 <h3>鋒兄金融</h3>
                 <p class="section-note">整理常用金融來源，搭配 Nhost 金融追蹤資料一起查看。</p>
@@ -2886,7 +2901,7 @@ function csvCell(value: unknown) {
             <p v-if="financeToolStatus" class="status-message">{{ financeToolStatus }}</p>
           </section>
           <article v-for="item in filteredFinanceWatch" :key="`${item.name}-${item.symbol}`" class="tool-card"><CircleDollarSign /><strong>{{ item.name }} / {{ item.symbol }}</strong><span>{{ item.value }} / {{ item.note }}</span></article>
-          <article v-for="item in financeToolResult?.items || []" :key="item.id" class="tool-card">
+          <article v-for="item in financeToolResult?.items || []" :key="item.id" class="tool-result-card finance-source-card">
             <CircleDollarSign />
             <strong>{{ item.name }} / {{ item.symbol }}</strong>
             <span>{{ item.group }} / {{ item.note }}</span>
