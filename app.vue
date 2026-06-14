@@ -447,6 +447,38 @@ const filteredRoutines = computed(() => filterRows(routines.value, query.value))
 const filteredBanks = computed(() => filterRows(banks.value, query.value));
 const filteredAccounts = computed(() => filterRows(commonAccounts.value, query.value));
 const filteredFinanceWatch = computed(() => filterRows(financeWatch.value, query.value));
+const toolModuleIds = ["tools", "price-compare", "phone-compare", "fengbro-tube", "fengbro-finance"];
+const isToolsSurface = computed(() => toolModuleIds.includes(currentModule.value));
+const todaySurfaceLabel = computed(() => new Intl.DateTimeFormat("zh-TW", { month: "numeric", day: "numeric", weekday: "long" }).format(new Date()));
+const moduleSurfaceCount = computed(() => menuItems.reduce((total, item) => total + 1 + (item.children?.length || 0), 0));
+const phoneComparePanels = computed(() => {
+  const comparisons = phoneCompareResult.value?.comparison || [];
+  return [
+    {
+      title: "蘋果手機區塊",
+      hint: "預設查詢：iPhone 17，每年九月切換新基準。",
+      query: "iPhone 17",
+      rows: comparisons.filter((item) => /iphone|apple/i.test(`${item.label} ${item.displayName}`))
+    },
+    {
+      title: "三星手機區塊",
+      hint: "預設查詢：Samsung 26，三月前用去年末兩碼。",
+      query: "Samsung 26",
+      rows: comparisons.filter((item) => /samsung|galaxy/i.test(`${item.label} ${item.displayName}`))
+    }
+  ];
+});
+const financeHighlight = computed(() => financeToolResult.value?.items.find((item) => item.id === "shiller-pe") || financeToolResult.value?.items[0] || null);
+const financeToolGroups = computed(() => {
+  const groups = new Map<string, FinanceToolResult["items"]>();
+  for (const item of financeToolResult.value?.items || []) {
+    if (item.id === financeHighlight.value?.id) continue;
+    const list = groups.get(item.group) || [];
+    list.push(item);
+    groups.set(item.group, list);
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+});
 const activeMediaItems = computed(() => {
   const key = currentModule.value === "podcast" ? "podcasts" : currentModule.value;
   if (key === "images" || key === "videos" || key === "music" || key === "documents" || key === "podcasts") {
@@ -2403,26 +2435,40 @@ function csvCell(value: unknown) {
       </div>
     </aside>
 
-    <main class="workspace">
+    <main :class="['workspace', { 'workspace-tools': isToolsSurface }]">
       <header class="topbar">
         <button class="icon-button mobile-only" type="button" aria-label="切換選單" @click="isSidebarOpen = !isSidebarOpen">
           <X v-if="isSidebarOpen" :size="19" />
           <Menu v-else :size="19" />
         </button>
-        <div class="page-title">
-          <p>Nuxt Workspace</p>
-          <h1>
-            {{ activeItem.label }}
-            <span v-if="activeModuleCount !== null" class="page-count">共 {{ activeModuleCount }} 筆</span>
-          </h1>
-        </div>
-        <label class="search-box">
-          <Search :size="18" />
-          <input v-model="query" type="search" placeholder="搜尋訂閱、食品、帳號、筆記、銀行、例行" />
-          <button v-if="query" class="clear-search" type="button" aria-label="清除搜尋" @click="query = ''">
-            <X :size="15" />
-          </button>
-        </label>
+        <template v-if="isToolsSurface">
+          <div class="active-surface-bar">
+            <div>
+              <p>Active Surface</p>
+              <strong>{{ activeItem.label }}</strong>
+            </div>
+            <div class="surface-pills">
+              <span><small>Today</small>{{ todaySurfaceLabel }}</span>
+              <span><small>Modules</small>{{ moduleSurfaceCount }} 個模組</span>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="page-title">
+            <p>Nuxt Workspace</p>
+            <h1>
+              {{ activeItem.label }}
+              <span v-if="activeModuleCount !== null" class="page-count">共 {{ activeModuleCount }} 筆</span>
+            </h1>
+          </div>
+          <label class="search-box">
+            <Search :size="18" />
+            <input v-model="query" type="search" placeholder="搜尋訂閱、食品、帳號、筆記、銀行、例行" />
+            <button v-if="query" class="clear-search" type="button" aria-label="清除搜尋" @click="query = ''">
+              <X :size="15" />
+            </button>
+          </label>
+        </template>
       </header>
 
       <!-- Global data state banner -->
@@ -2778,7 +2824,7 @@ function csvCell(value: unknown) {
         </article>
       </section>
 
-      <section v-else-if="['tools', 'price-compare', 'phone-compare', 'fengbro-tube', 'fengbro-finance'].includes(currentModule)" class="module-grid">
+      <section v-else-if="isToolsSurface" class="module-grid tool-module-grid">
         <section class="tool-console">
           <div class="tool-console-heading">
             <div>
@@ -2805,27 +2851,52 @@ function csvCell(value: unknown) {
               </div>
               <button type="button" :disabled="isPriceCompareLoading" @click="runPriceCompare">{{ isPriceCompareLoading ? "查詢中..." : "查詢" }}</button>
             </div>
-            <form class="tool-form" @submit.prevent="runPriceCompare">
-              <input v-model="priceCompareInput" placeholder="商品網址或關鍵字，例如 iPhone 16 Pro 256G" />
-              <button type="submit" :disabled="isPriceCompareLoading"><Search :size="15" />查詢價格</button>
-            </form>
-            <div class="tool-source-grid">
-              <div class="tool-source-card active"><strong>BigGo API</strong><span>查詢 BigGo 歷史價格資料</span></div>
-              <div class="tool-source-card"><strong>本地估值</strong><span>外部查詢失敗時保留來源連結</span></div>
+            <div class="price-query-box">
+              <label>商品網址</label>
+              <form class="tool-form" @submit.prevent="runPriceCompare">
+                <input v-model="priceCompareInput" placeholder="https://24h.pchome.com.tw/prod/DRAHC0-A900J8363" />
+                <button type="submit" :disabled="isPriceCompareLoading"><Search :size="15" />查詢歷史價格</button>
+              </form>
+              <div class="tool-source-grid">
+                <div class="tool-source-card active"><strong>BigGo API</strong><span>查詢 BigGo 歷史價格資料</span></div>
+                <div class="tool-source-card"><strong>本地估值</strong><span>保留本地測試流程，不連外查價</span></div>
+              </div>
             </div>
             <p v-if="priceCompareStatus" class="status-message">{{ priceCompareStatus }}</p>
           </section>
+          <section class="tool-strip">
+            <div>
+              <strong>最近連結</strong>
+              <small>{{ priceCompareResult ? "1 筆" : "等待查詢" }}</small>
+            </div>
+            <a v-if="priceCompareResult" :href="priceCompareResult.sourceUrl" target="_blank" rel="noreferrer">
+              {{ priceCompareResult.productTitle }}
+              <span>{{ priceCompareResult.sourceUrl }}</span>
+            </a>
+            <span v-else>貼上 PChome、momo 或商品頁網址後會保留最近查詢。</span>
+          </section>
           <article v-if="priceCompareResult" class="tool-result-card wide-tool-card">
-            <TrendingUp />
-            <strong>{{ priceCompareResult.productTitle }}</strong>
-            <span>BigGo 關鍵字：{{ priceCompareResult.keyword }}</span>
+            <div class="result-card-head">
+              <div>
+                <strong>{{ priceCompareResult.productTitle }}</strong>
+                <span>來源：BigGo API / 關鍵字：{{ priceCompareResult.keyword }}</span>
+              </div>
+              <strong class="price-current">{{ toolMoney(priceCompareResult.currentPrice) }}</strong>
+            </div>
             <div class="tool-stat-grid">
               <div><span>目前低價</span><strong>{{ toolMoney(priceCompareResult.currentPrice) }}</strong></div>
               <div><span>區間高點</span><strong>{{ toolMoney(priceCompareResult.historicalHigh) }}</strong></div>
               <div><span>區間低點</span><strong>{{ toolMoney(priceCompareResult.historicalLow) }}</strong></div>
             </div>
-            <div class="tool-chip-row">
-              <span v-for="point in priceCompareResult.series" :key="point.label" class="chip">{{ point.label }} {{ toolMoney(point.value) }}</span>
+            <div class="trend-panel">
+              <div class="trend-line" aria-hidden="true">
+                <i
+                  v-for="(point, index) in priceCompareResult.series"
+                  :key="point.label"
+                  :style="{ left: `${index * (100 / Math.max(priceCompareResult.series.length - 1, 1))}%` }"
+                />
+              </div>
+              <span v-for="point in priceCompareResult.series" :key="point.label">{{ point.label }} {{ toolMoney(point.value) }}</span>
             </div>
             <a class="text-action" :href="priceCompareResult.biggoUrl" target="_blank" rel="noreferrer">開啟 BigGo</a>
           </article>
@@ -2841,11 +2912,36 @@ function csvCell(value: unknown) {
               </div>
               <button type="button" :disabled="isPhoneCompareLoading" @click="runPhoneCompare">{{ isPhoneCompareLoading ? "比對中..." : "比對" }}</button>
             </div>
-            <form class="tool-form" @submit.prevent="runPhoneCompare">
-              <input v-model="phoneCompareInput" placeholder="手機型號，例如 iPhone 16、Samsung S25、A56" />
-              <button type="submit" :disabled="isPhoneCompareLoading"><Boxes :size="15" />比對手機</button>
-            </form>
+            <div class="phone-query-grid">
+              <article v-for="panel in phoneComparePanels" :key="panel.title" class="phone-query-card">
+                <div>
+                  <strong>{{ panel.title }}</strong>
+                  <span>{{ panel.hint }}</span>
+                </div>
+                <form class="tool-form" @submit.prevent="runPhoneCompare">
+                  <input v-model="phoneCompareInput" :placeholder="panel.query" />
+                  <button type="submit" :disabled="isPhoneCompareLoading"><Search :size="15" />搜尋{{ panel.title.includes("三星") ? "三星" : "蘋果" }}</button>
+                </form>
+              </article>
+            </div>
             <p v-if="phoneCompareStatus" class="status-message">{{ phoneCompareStatus }}</p>
+          </section>
+          <section v-if="phoneCompareResult?.comparison.length" class="landtop-chart">
+            <div class="section-heading compact">
+              <div>
+                <p class="panel-kicker">Landtop Chart</p>
+                <h3>地標網通 vs 傑昇通信</h3>
+              </div>
+              <BarChart3 :size="20" />
+            </div>
+            <div v-for="item in phoneCompareResult.comparison.slice(0, 4)" :key="`chart-${item.label}`" class="compare-bar-row">
+              <strong>{{ item.displayName }}</strong>
+              <div v-for="source in item.sources" :key="`${item.label}-${source.source}-bar`" class="compare-bar">
+                <span>{{ source.source }}</span>
+                <i :style="{ width: source.numericPrice ? `${Math.max(10, 100 - (source.numericPrice / 80000) * 100)}%` : '8%' }" />
+                <b>{{ source.priceLabel }}</b>
+              </div>
+            </div>
           </section>
           <article v-for="item in phoneCompareResult?.comparison || []" :key="item.label" class="tool-result-card">
             <Boxes />
@@ -2865,6 +2961,14 @@ function csvCell(value: unknown) {
               </a>
             </div>
           </article>
+          <section v-if="phoneCompareResult?.comparison.length" class="weekly-history">
+            <div>
+              <p class="panel-kicker">Weekly History</p>
+              <h3>地標網通歷史價格</h3>
+              <span>保留最近 7 天紀錄，價格會依每次查詢更新。</span>
+            </div>
+            <div class="history-line"><i v-for="n in 9" :key="n" :style="{ left: `${(n - 1) * 12.5}%` }" /></div>
+          </section>
           <article v-if="phoneCompareResult && !phoneCompareResult.comparison.length" class="tool-card"><AlertCircle /><strong>暫時沒有可解析價格</strong><span>可開啟來源網站手動查看。</span></article>
         </template>
         <template v-else-if="activeTool === 'fengbro-tube'">
@@ -2879,13 +2983,33 @@ function csvCell(value: unknown) {
             </div>
             <p v-if="tubeStatus" class="status-message">{{ tubeStatus }}</p>
           </section>
-          <article v-for="video in tubeResult?.recentVideos || []" :key="video.id" class="tool-result-card video-tool-card">
-            <img v-if="video.thumbnail" :src="video.thumbnail" :alt="video.title" loading="lazy" />
-            <Play v-else />
-            <strong>{{ video.title }}</strong>
-            <span>{{ video.channelLabel }} / {{ formatToolDate(video.published) }}</span>
-            <a class="text-action" :href="video.url" target="_blank" rel="noreferrer">播放</a>
-          </article>
+          <section v-if="tubeResult" class="tube-recent-panel">
+            <div class="section-heading compact">
+              <h3>3 天內新影片：{{ tubeResult.recentVideos.length }} 部</h3>
+              <span>頻道：{{ tubeResult.channels.length }} / 預設 {{ tubeResult.channels.length }}</span>
+            </div>
+            <a v-for="video in tubeResult.recentVideos.slice(0, 8)" :key="video.id" :href="video.url" target="_blank" rel="noreferrer">
+              <strong>{{ video.title }}</strong>
+              <span>{{ video.channelLabel }} / {{ formatToolDate(video.published) }}</span>
+            </a>
+          </section>
+          <section v-for="channel in tubeResult?.channels || []" :key="channel.id" class="tube-channel-panel">
+            <div class="section-heading compact">
+              <div>
+                <h3>{{ channel.label }}</h3>
+                <a class="text-action" :href="channel.url" target="_blank" rel="noreferrer">開啟頻道</a>
+              </div>
+              <span>{{ channel.videos.length }} 部影片</span>
+            </div>
+            <div class="tube-video-grid">
+              <article v-for="video in channel.videos.slice(0, 10)" :key="video.id" class="video-tool-card">
+                <img v-if="video.thumbnail" :src="video.thumbnail" :alt="video.title" loading="lazy" />
+                <div v-else class="image-fallback"><Play :size="24" /></div>
+                <strong>{{ video.title }}</strong>
+                <span>{{ formatToolDate(video.published) }}</span>
+              </article>
+            </div>
+          </section>
           <article v-if="!tubeResult" class="tool-card"><Play /><strong>載入鋒兄Tube</strong><span>按下重新載入取得近期影片。</span></article>
         </template>
         <template v-else>
@@ -2900,13 +3024,57 @@ function csvCell(value: unknown) {
             </div>
             <p v-if="financeToolStatus" class="status-message">{{ financeToolStatus }}</p>
           </section>
-          <article v-for="item in filteredFinanceWatch" :key="`${item.name}-${item.symbol}`" class="tool-card"><CircleDollarSign /><strong>{{ item.name }} / {{ item.symbol }}</strong><span>{{ item.value }} / {{ item.note }}</span></article>
-          <article v-for="item in financeToolResult?.items || []" :key="item.id" class="tool-result-card finance-source-card">
-            <CircleDollarSign />
-            <strong>{{ item.name }} / {{ item.symbol }}</strong>
-            <span>{{ item.group }} / {{ item.note }}</span>
-            <a class="text-action" :href="item.url" target="_blank" rel="noreferrer">開啟來源</a>
-          </article>
+          <section v-if="financeHighlight" class="finance-highlight">
+            <div class="tool-icon green"><BarChart3 :size="20" /></div>
+            <div>
+              <strong>{{ financeHighlight.name }}</strong>
+              <span>{{ financeHighlight.note }}</span>
+            </div>
+            <div class="finance-current">
+              <small>Current</small>
+              <strong>{{ financeHighlight.lastLabel }}</strong>
+              <a :href="financeHighlight.url" target="_blank" rel="noreferrer">{{ financeToolResult?.source || financeHighlight.symbol }}</a>
+            </div>
+          </section>
+          <section v-for="group in financeToolGroups" :key="group.label" class="finance-group">
+            <div class="section-heading compact">
+              <h3>{{ group.label }}</h3>
+              <span>{{ group.items.length }} 項</span>
+            </div>
+            <div class="finance-card-grid">
+              <article v-for="item in group.items" :key="item.id" class="finance-source-card">
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <span>{{ item.symbol }}</span>
+                </div>
+                <a :href="item.url" target="_blank" rel="noreferrer">{{ financeToolResult?.source || "來源" }}</a>
+                <div class="finance-value">
+                  <strong>{{ item.lastLabel }}</strong>
+                  <span :class="{ down: item.changeLabel.includes('-') }">{{ item.changeLabel }}</span>
+                </div>
+                <small>{{ item.note }}</small>
+              </article>
+            </div>
+          </section>
+          <section v-if="filteredFinanceWatch.length" class="finance-group">
+            <div class="section-heading compact">
+              <h3>Nhost 金融追蹤</h3>
+              <span>{{ filteredFinanceWatch.length }} 項</span>
+            </div>
+            <div class="finance-card-grid">
+              <article v-for="item in filteredFinanceWatch" :key="`${item.name}-${item.symbol}`" class="finance-source-card">
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <span>{{ item.symbol }}</span>
+                </div>
+                <div class="finance-value">
+                  <strong>{{ item.value }}</strong>
+                  <span>{{ item.note }}</span>
+                </div>
+              </article>
+            </div>
+          </section>
+          <article v-if="!financeToolResult && !filteredFinanceWatch.length" class="tool-card"><CircleDollarSign /><strong>載入鋒兄金融</strong><span>按下重新整理取得金融觀察來源。</span></article>
         </template>
       </section>
 
