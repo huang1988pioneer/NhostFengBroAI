@@ -429,6 +429,9 @@ const isTubeLoading = ref(false);
 const financeToolResult = ref<FinanceToolResult | null>(null);
 const financeToolStatus = ref("");
 const isFinanceToolLoading = ref(false);
+const hasAutoLoadedPhoneTool = ref(false);
+const hasAutoLoadedTubeTool = ref(false);
+const hasAutoLoadedFinanceTool = ref(false);
 
 const activeItem = computed(() => findMenuItem(currentModule.value) ?? menuItems[0]);
 const activeModuleCount = computed(() => moduleItemCount(currentModule.value));
@@ -526,6 +529,21 @@ watch(
   },
   { immediate: true }
 );
+
+watch(activeTool, (tool) => {
+  if (tool === "phone-compare" && !hasAutoLoadedPhoneTool.value && !isPhoneCompareLoading.value) {
+    hasAutoLoadedPhoneTool.value = true;
+    void runPhoneCompare();
+  }
+  if (tool === "fengbro-tube" && !hasAutoLoadedTubeTool.value && !isTubeLoading.value) {
+    hasAutoLoadedTubeTool.value = true;
+    void runTubeLookup();
+  }
+  if (tool === "fengbro-finance" && !hasAutoLoadedFinanceTool.value && !isFinanceToolLoading.value) {
+    hasAutoLoadedFinanceTool.value = true;
+    void runFinanceLookup();
+  }
+});
 
 onMounted(() => {
   loadStoredNhostSettings();
