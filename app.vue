@@ -1265,7 +1265,7 @@ async function uploadMediaFile(event: Event) {
   try {
     const result = await uploadFileToNhostStorage(file);
 
-    if (!quickForm.mediaName) quickForm.mediaName = stripFileExtension(result.name || file.name);
+    if (!quickForm.mediaName) quickForm.mediaName = defaultMediaNameForUpload(result.name || file.name);
     quickForm.mediaUrl = result.url;
     showCsvToast(`已上傳：${result.name || file.name}`);
   } catch (error) {
@@ -1278,6 +1278,10 @@ async function uploadMediaFile(event: Event) {
 
 function stripFileExtension(filename: string) {
   return filename.replace(/\.[^.]+$/, "");
+}
+
+function defaultMediaNameForUpload(filename: string) {
+  return currentModule.value === "documents" ? filename : stripFileExtension(filename);
 }
 
 async function uploadFoodPhoto(event: Event) {
