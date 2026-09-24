@@ -229,14 +229,16 @@ const tablePlans = [
     columns: {
       id: ["id"],
       name: ["name", "email", "account"],
-      sites: ["sites", "site", "services"]
+      sites: ["sites", "site", "services"],
+      note: ["note", "notes", "description"]
     },
     normalize: (rows) =>
       rows.map(
         (row): CommonAccount => ({
           id: text(row.id),
           name: text(row.name),
-          sites: normalizeSites(row.sites)
+          sites: normalizeSites(row.sites),
+          note: text(row.note)
         })
       )
   },

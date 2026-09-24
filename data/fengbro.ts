@@ -32,6 +32,7 @@ export type CommonAccount = {
   id?: string;
   name: string;
   sites: Array<{ site: string; note: string }>;
+  note?: string;
 };
 
 export type Bank = {

@@ -1,7 +1,11 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T">
 defineProps<{
-  rows: unknown[];
+  rows: T[];
   columns: string[];
+}>();
+
+defineSlots<{
+  default(props: { row: T }): unknown;
 }>();
 </script>
 
